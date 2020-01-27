@@ -1,0 +1,13 @@
+{
+	"authors": [
+		"Tomoya Tanjo"
+	],
+	"copyright": "Copyright © 2020, Tomoya Tanjo",
+	"description": "A Flux-based state transition engine",
+	"license": "Apache-2.0",
+	"name": "medal",
+	"targetType": "executable",
+	"dependencies": {
+		"dyaml": "~>0.8.0"
+	}
+}

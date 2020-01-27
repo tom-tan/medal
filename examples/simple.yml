@@ -1,0 +1,48 @@
+configuration:
+  id: simple
+
+store:
+  - variable: a
+    type: int
+    default: 0
+
+action-creator:
+  - name: a
+    mapper:
+      - value: 0
+        action: ping
+      - value: _
+        action: smash
+  - name: b
+    mapper:
+      - value: 1
+        action: pong
+
+actions:
+  - action: ping
+    in:
+      - variable: a
+        value: 0
+    commands:
+      - out:
+          - variable: b
+            value: 1
+        side-effect: echo ping.
+  - action: pong
+    in:
+      - variable: b
+        value: 1
+    commands:
+      - out:
+        - variable: a
+          value: 2
+        side-effect: echo pong.
+  - action: smash
+    in:
+      - variable: a
+        value: _
+    commands:
+      - out:
+        - variable: system
+          value: quit
+        side-effect: echo 'smash!'
