@@ -1,5 +1,5 @@
-# What is this?
-This is a template to develop D applications with VSCode with remote container extension.
+# Medal
+Medal is a state transition engine based on Flux.
 
 ## TODO
 - 用語の整理
