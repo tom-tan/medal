@@ -1,5 +1,5 @@
 configuration:
-  id: ep3.system
+  namespace: ep3.system
   environments:
     - variable: $ENV
       value: $VAL
@@ -7,32 +7,29 @@ configuration:
 # action creator での mapping 時点では、他の inp の条件は満たされていないかもしれない
 # 変化があった $VAR に対してのみ mapper をかける
 action-creator:
-  - name: $VAR
-    mapper:
+  - type: $VAR
+    pattern:
       - value: $VAL
         action: $ACT
-      - value: *
+      - value: _
         action: $ACT
 
 # 似た名前が多いので整理したい
 # actions/action/command?
 # 特定の command だけ上書きしたい
 actions:
-  - action: $ACT
+  - type: $ACT
     tags: [nominal] # 正常系のみハイライトとかに使いたい
-    in:
-      - variable: $VAR
-        value: $VAL
-    subactions:
-      - out:
+    commands:
+      - payload:
           - variable: $VAR
             value: $VAL
-        extra-in:
+        meta:
           - variable: $VAR
             value: $VAL
         side-effect: $CMD # optional
         custom-logger: # optional
-          extra-in: # 名前は？
+          meta:
             - variable: $VAR
           formatter: $CMD
 

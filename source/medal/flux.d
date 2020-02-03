@@ -12,7 +12,7 @@ class EventRules
     auto dispatch(in Event e)
     {
         import std.algorithm: filter;
-        return rules.filter!(r => e.match(r));
+        return rules.filter!(r => e.match_(r));
     }
 
     ///
@@ -20,23 +20,15 @@ class EventRules
 }
 
 ///
-auto match(in Event e, RuleType r)
+auto match_(in Event e, RuleType r)
 {
     import std.range: front, empty;
     import std.algorithm: all;
-    foreach(pat; r.payload)
-    {
-        if (!e.match(pat))
-        {
-            return false;
-        }
-    }
-    return true;
-    //return r.payload.all!(pat => e.match(pat));
+    return r.payload.all!(pat => e.match_(pat));
 }
 
 ///
-auto match(in Event e, Assignment pat)
+auto match_(in Event e, Assignment pat)
 {
     import std.algorithm: find;
     import std.range: front, empty;
@@ -57,7 +49,6 @@ class Store
 {
     ///
     ValueType[const(Variable)] state;
-    //Assignment[] state;
 
     ///
     Task[ActionType] rootSaga;
@@ -84,15 +75,26 @@ alias ActionType = string;
 alias Payload = Assignment[];
 alias Meta = Assignment[];
 
+// ActionType と Payload の取りうる値が異なる
+// UserAction // action-creator で生成される
+// - type: any string
+// - payload: any
+// ReduceAction // commands#payload
+// - type: modify or system
+// - payload: any or RETURN, STDOUT, STDERR
+// Event // action-creator
+// - type: modify
+// - payload: pattern <- payload よりも pattern の方が適切
+
 ///
 class Action
 {
     ///
-    this(string ns, ActionType t, Payload p)
+    this(string ns, ActionType t, in Payload p)
     {
         namespace = ns;
         type = t;
-        payload = p;
+        payload = p.dup;
     }
 
     ///
@@ -112,8 +114,14 @@ struct Int
     ///
     int n;
 }
+///
+struct RETURN{}
+///
+struct STDOUT{}
+///
+struct STDERR{}
 
-alias ValueType = SumType!(Int);
+alias ValueType = SumType!(Int, RETURN, STDOUT, STDERR);
 
 ///
 struct Variable
@@ -134,6 +142,15 @@ struct Variable
 ///
 struct Assignment
 {
+    ///
+    static opCall(Variable var, ValueType v)
+    {
+        typeof(this) ret;
+        ret.variable = var;
+        ret.value = v;
+        return ret;
+    }
+
     ///
     static opCall(Variable var, Int i)
     {
@@ -166,16 +183,16 @@ class Task
 class CommandHolder
 {
     ///
-    this(string com, ReduceAction[] as)
+    this(string com, ReduceAction a)
     {
         command = com;
-        actions = as;
+        action = a;
     }
 
     ///
     string command;
     ///
-    ReduceAction[] actions;
+    ReduceAction action;
 }
 
 ///
@@ -183,28 +200,27 @@ ReduceAction fork(Task cb, UserAction action)
 {
     import std.process: spawnShell, wait;
     import std.array: array;
-    import std.algorithm: map, fold;
-    import std.stdio: writefln, writeln;
-    writeln("AAA: ", cb.coms[0].command);
-    const ras = cb.coms.map!((c) {
-        // should handle stdout, stderr and input actions
-        writefln("EXEC: `%s`", c.command);
+    import std.algorithm: any, map, fold;
+    return cb.coms.map!((c) {
         auto pid = spawnShell(c.command);
         auto code = wait(pid);
-        auto out_ = "";
-        auto err_ = "";
-        // replace RETURN with the return code etc...
-        auto toReduceAction(Action a, int c, string out_, string err_) 
-        {
-            return a;
-        }
-        auto ret = c.actions.map!(a => toReduceAction(a, code, out_, err_));
-        return ret;
-    }).array;
-    return action;
-    /*ras.fold!((acc, e) {
-        return e;
-    })(ReduceAction.init).array;*/
+        auto out_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
+        auto err_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
+        auto p = c.action.payload.map!(a =>
+            a.value.match!(
+                (STDOUT _) => Assignment(a.variable, ValueType(Int(0))),
+                (STDERR _) => Assignment(a.variable, ValueType(Int(1))),
+                (RETURN _) => Assignment(a.variable, ValueType(Int(code))),
+                _ => a,
+            )
+        ).array;
+        auto type = c.action.payload.any!(a => a.variable.name == "exit") ? "exit" : "mod";
+        return new ReduceAction(action.namespace, type, p);
+    }).fold!((acc, e) {
+        auto p = acc.payload ~ e.payload;
+        auto type = (acc.type == "exit" || e.type == "exit") ? "exit" : "mod";
+        return new ReduceAction(acc.namespace, type, p);
+    })(new ReduceAction(action.namespace, "mod", []));
 }
 
 // https://techblog.zozo.com/entry/android-flux
@@ -312,3 +328,37 @@ ReduceAction fork(Task cb, UserAction action)
 // https://qiita.com/mpyw/items/a816c6380219b1d5a3bf
 
 // Some term is imported from Flux, redux-saga
+/+
+alias UserActionType = string;
+
+struct ActionRule
+{
+    string namespace;
+    UserActionType type;
+    UserActionPattern pattern;
+}
+alias UserActionPattern = ValuePattern[Variable];
+
+struct ValuePattern
+{
+    // ValueType or `_`
+}
+
+enum ReduceActionType
+{
+    MODIFY, EXIT,
+}
+
+struct ReduceActionDef
+{
+    string namespace;
+    ReduceActionType type;
+    ReduceActionDecl payload;
+}
+alias ReduceActionDecl = ReduceActionValue[Variable];
+
+struct ReduceActionValue
+{
+    // ValueType or RETURN or STDOUT or STDERR
+}
++/

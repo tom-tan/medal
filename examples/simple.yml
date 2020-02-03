@@ -9,35 +9,35 @@ store:
     type: int
 
 action-creator:
-  - payload:
+  - pattern:
       - variable: a
         value: 0
     type: ping
-  - payload:
+  - pattern:
       - variable: a
         value: 2
     type: smash
-  - payload:
+  - pattern:
       - variable: b
         value: 1
     type: pong
 
-callbacks:
-  - type: ping
-    commands:
-      - payload:
+saga:
+  - take: ping
+    tasks:
+      - put:
           - variable: b
             value: 1
-        side-effect: echo ping.
-  - type: pong
-    commands:
-      - payload:
+        call: echo ping.
+  - take: pong
+    tasks:
+      - put:
         - variable: a
           value: 2
-        side-effect: echo pong.
-  - type: smash
-    commands:
-      - payload:
-        - variable: system
-          value: quit
-        side-effect: echo 'smash!'
+        call: echo pong.
+  - take: smash
+    tasks:
+      - put:
+        - variable: exit
+          value: 0
+        call: echo 'smash!'

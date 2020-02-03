@@ -19,45 +19,31 @@ auto run(Store s, EventRules er, ReduceAction init)
 
     auto running = true;
     auto code = 0;
-    Variant v;
-    writeln(init.sizeof);
-    v = cast(shared)init;
     send(thisTid, (cast(immutable)init));
-    writeln("yyy");
     while (running) {
         import std.algorithm: canFind;
-        writeln("zzz");
-        receive((immutable Action ra) {
-            writeln("Receive ", ra);
+        receive((in Action ra) {
             s = s.reduce(ra); // apply は store 内でするべき？
-            writeln("start event dispatch");
             auto uas = er.dispatch(ra);
-            writeln("end event dispatch");
             foreach(ua; uas.parallel)
             {
-                writeln("start store dispatch");
                 auto a = s.dispatch(ua);
-                writeln("end store dispatch");
-                if (a.type == "system")
+                if (a.type == "exit")
                 {
-                    writeln("send quit message");
-                    send(thisTid, shared MedalExit(0));
+                    send(thisTid, immutable MedalExit(0));
                 }
                 else
                 {
-                    writeln("send ", a);
-                    writeln("Val: ", a.type, ", ", a.payload);
                     send(thisTid, cast(immutable)a);
                 }
             }
         },
-        (MedalExit me) {
+        (in MedalExit me) {
             running = false;
             code = me.code;
             send(thisTid, me);
         },
         (Variant v) {
-            writeln("Unknown message: ", v);
             running = false;
             code = 1;
         });
@@ -78,15 +64,15 @@ unittest
     s.rootSaga = [
         "ping": new Task([
             new CommandHolder("echo ping.", 
-            [new ReduceAction("", "mod", [Assignment(Variable("", "b"), Int(1))])])
+                new ReduceAction("", "mod", [Assignment(Variable("", "b"), Int(1))]))
         ]),
         "pong": new Task([
             new CommandHolder("echo pong.",
-            [new ReduceAction("", "mod", [Assignment(Variable("", "a"), Int(2))])])
+                new ReduceAction("", "mod", [Assignment(Variable("", "a"), Int(2))]))
         ]),
         "smash": new Task([
-            new CommandHolder("ehco 'smash!'", 
-            [new ReduceAction("", "system", [])])
+            new CommandHolder("echo 'smash!'", 
+                new ReduceAction("", "mod", [Assignment(Variable("", "exit"), Int(0))]))
         ]),
     ];
 
@@ -102,8 +88,6 @@ unittest
             Assignment(Variable("", "b"), Int(1))
         ])
     ];
-    writeln("aaa");
     const code = run(s, er, init);
-    writeln("end run");
     assert(code == 0);
 }
