@@ -1,4 +1,8 @@
 module medal.flux;
+
+// TODO: JSONLLogger
+import std.experimental.logger;
+
 import sumtype;
 
 alias Event = ReduceAction;
@@ -9,7 +13,7 @@ alias RuleType = UserAction;
 class EventRules
 {
     ///
-    auto dispatch(in Event e)
+    auto dispatch(in Event e) @safe
     {
         import std.algorithm: filter;
         return rules.filter!(r => e.match_(r));
@@ -20,26 +24,28 @@ class EventRules
 }
 
 ///
-auto match_(in Event e, RuleType r)
+auto match_(in Event e, RuleType r) @safe
 {
+    import std.array: byPair;
     import std.range: front, empty;
     import std.algorithm: all;
-    return r.payload.all!(pat => e.match_(pat));
+    return r.payload.byPair.all!(kv => e.match_(kv.key, kv.value));
 }
 
 ///
-auto match_(in Event e, Assignment pat)
+auto match_(in Event e, Variable var, ValueType pat) @safe
 {
+    import std.array: byPair;
     import std.algorithm: find;
     import std.range: front, empty;
-    const m = e.payload.find!(p => p.variable == pat.variable);
+    auto m = e.payload.byPair.find!(kv => kv.key == var); // @suppress(dscanner.suspicious.unmodified)
     if (m.empty)
     {
         return false;
     }
     else
     {
-        auto as = m.front;
+        auto as = m.front.value;
         return as == pat; // does not match `_`
     }
 }
@@ -54,12 +60,13 @@ class Store
     Task[ActionType] rootSaga;
 
     ///
-    auto reduce(in ReduceAction action)
+    auto reduce(in ReduceAction action) @safe
     {
+        import std.array: byPair;
         import std.algorithm: each;
-        action.payload.each!((in Assignment as) {
-            state[as.variable] = as.value;
-        });
+        action.payload.byPair.each!(kv =>
+            state[kv.key] = kv.value
+        );
         return this;
     }
 
@@ -72,8 +79,8 @@ class Store
 }
 
 alias ActionType = string;
-alias Payload = Assignment[];
-alias Meta = Assignment[];
+alias Payload = ValueType[Variable];
+//alias Meta = ValueType[Variable];
 
 // ActionType と Payload の取りうる値が異なる
 // UserAction // action-creator で生成される
@@ -90,11 +97,11 @@ alias Meta = Assignment[];
 class Action
 {
     ///
-    this(string ns, ActionType t, in Payload p)
+    this(string ns, ActionType t, in Payload p) @safe
     {
         namespace = ns;
         type = t;
-        payload = p.dup;
+        payload = p;
     }
 
     ///
@@ -102,7 +109,7 @@ class Action
     ///
     ActionType type;
     ///
-    Payload payload;
+    const Payload payload;
 }
 
 alias UserAction = Action;
@@ -127,7 +134,7 @@ alias ValueType = SumType!(Int, RETURN, STDOUT, STDERR);
 struct Variable
 {
     ///
-    this(string ns, string n)
+    this(string ns, string n) @safe
     {
         namespace = ns;
         name = n;
@@ -140,37 +147,10 @@ struct Variable
 }
 
 ///
-struct Assignment
-{
-    ///
-    static opCall(Variable var, ValueType v)
-    {
-        typeof(this) ret;
-        ret.variable = var;
-        ret.value = v;
-        return ret;
-    }
-
-    ///
-    static opCall(Variable var, Int i)
-    {
-        typeof(this) ret;
-        ret.variable = var;
-        ret.value = ValueType(i);
-        return ret;
-    }
-
-    ///
-    Variable variable;
-    ///
-    ValueType value;
-}
-
-///
 class Task
 {
     ///
-    this(CommandHolder[] c)
+    this(CommandHolder[] c) @safe
     {
         coms = c;
     }
@@ -183,7 +163,7 @@ class Task
 class CommandHolder
 {
     ///
-    this(string com, ReduceAction a)
+    this(string com, ReduceAction a) @safe
     {
         command = com;
         action = a;
@@ -199,28 +179,31 @@ class CommandHolder
 ReduceAction fork(Task cb, UserAction action)
 {
     import std.process: spawnShell, wait;
-    import std.array: array;
+    import std.array: array, byPair, assocArray, join;
     import std.algorithm: any, map, fold;
-    return cb.coms.map!((c) {
+    import std.typecons: tuple;
+    auto ras = cb.coms.map!((c) {
+        infof("start `%s`", c.command);
         auto pid = spawnShell(c.command);
         auto code = wait(pid);
         auto out_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
         auto err_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
-        auto p = c.action.payload.map!(a =>
-            a.value.match!(
-                (STDOUT _) => Assignment(a.variable, ValueType(Int(0))),
-                (STDERR _) => Assignment(a.variable, ValueType(Int(1))),
-                (RETURN _) => Assignment(a.variable, ValueType(Int(code))),
-                _ => a,
+        auto p = c.action.payload.byPair.map!(kv =>
+            kv.value.match!(
+                (STDOUT _) => tuple(kv.key, ValueType(Int(0))),
+                (STDERR _) => tuple(kv.key, ValueType(Int(1))),
+                (RETURN _) => tuple(kv.key, ValueType(Int(code))),
+                _ => tuple(kv.key, cast()kv.value),
             )
-        ).array;
-        auto type = c.action.payload.any!(a => a.variable.name == "exit") ? "exit" : "mod";
+        ).assocArray;
+        auto type = c.action.payload.byKey.any!(var => var.name == "exit") ? "exit" : "mod";
+        infof("end `%s`", c.command);
         return new ReduceAction(action.namespace, type, p);
-    }).fold!((acc, e) {
-        auto p = acc.payload ~ e.payload;
-        auto type = (acc.type == "exit" || e.type == "exit") ? "exit" : "mod";
-        return new ReduceAction(acc.namespace, type, p);
-    })(new ReduceAction(action.namespace, "mod", []));
+    }).array;
+    
+    auto type = ras.any!(a => a.type == "exit") ? "exit" : "mod";
+    auto p = ras.map!"a.payload.byPair".join.map!"tuple(a.key, cast()a.value)".assocArray;
+    return new ReduceAction(action.namespace, type, p);
 }
 
 // https://techblog.zozo.com/entry/android-flux
