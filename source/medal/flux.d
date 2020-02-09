@@ -54,10 +54,11 @@ auto match_(in Event e, Variable var, ValueType pat) @safe
 class Store
 {
     ///
-    ValueType[const(Variable)] state;
-
-    ///
-    Task[ActionType] rootSaga;
+    this(ValueType[const(Variable)] st, Task[ActionType] saga)
+    {
+        state = st;
+        rootSaga = saga;
+    }
 
     ///
     auto reduce(in ReduceAction action) @safe
@@ -65,18 +66,24 @@ class Store
         import std.array: byPair;
         import std.algorithm: each;
         action.payload.byPair.each!(kv =>
-            state[kv.key] = kv.value
+            cast()state[kv.key] = kv.value
         );
         return this;
     }
 
     ///
-    auto dispatch(UserAction a)
+    auto dispatch(in UserAction a)
     {
         auto c = rootSaga[a.type];
-        return fork(c, a);
+        return fork(cast()c, cast()a);
     }
-}
+
+private:
+    ///
+    ValueType[const(Variable)] state;
+
+    ///
+    Task[ActionType] rootSaga;}
 
 alias ActionType = string;
 alias Payload = ValueType[Variable];
@@ -141,6 +148,17 @@ struct Variable
     }
 
     ///
+    size_t toHash() const @safe pure nothrow
+    {
+        return name.hashOf(namespace.hashOf);
+    }
+
+    bool opEquals(ref const typeof(this) rhs) const @safe pure nothrow
+    {
+        return namespace == rhs.namespace && name == rhs.name;
+    }
+
+    ///
     string namespace;
     ///
     string name;
@@ -184,6 +202,7 @@ ReduceAction fork(Task cb, UserAction action)
     import std.typecons: tuple;
     auto ras = cb.coms.map!((c) {
         infof("start `%s`", c.command);
+        scope(success) infof("end `%s`", c.command);
         auto pid = spawnShell(c.command);
         auto code = wait(pid);
         auto out_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
@@ -197,7 +216,6 @@ ReduceAction fork(Task cb, UserAction action)
             )
         ).assocArray;
         auto type = c.action.payload.byKey.any!(var => var.name == "exit") ? "exit" : "mod";
-        infof("end `%s`", c.command);
         return new ReduceAction(action.namespace, type, p);
     }).array;
     
@@ -344,4 +362,22 @@ struct ReduceActionValue
 {
     // ValueType or RETURN or STDOUT or STDERR
 }
++/
+
+// Petri nets: http://www.peterlongo.it/Italiano/Informatica/Petri/index.html
+/+
+懸念事項: ちゃんとしたペトリネットではない！
+- timed Petri nets (発火継続時間モデル)と近いが、以下の点が異なる
+  - timed Petri nets
+    - 発火可能になると入力プレースからトークンが消費される
+      - 入力プレースからトランジションへのトークンの移動
+    - 一定時間後に出力プレースにトークンがトランジションから移動する
+    - 同一プレースに複数トークンが現れうる
+    - Rust の move と対応？
+  - ep3 モデル
+    - 発火可能になっても入力プレースからトークンが消費されない
+    - 一定時間後に出力プレースにトークンが**追加で**現れる
+    - 同一プレースにはトークンは高々一つ
+    - 既存のプログラミング言語のモデリングはこちらに近い
+    - Rust の borrow と対応？
 +/

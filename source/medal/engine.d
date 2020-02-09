@@ -4,57 +4,52 @@ import std.experimental.logger;
 
 import medal.flux;
 
-///
-struct MedalExit
-{
-    ///
-    int code;
-}
-
 /// 動作イメージ
 auto run(Store s, EventRules er, ReduceAction init)
 {
-    import std.concurrency: receive, send, thisTid;
-    import std.parallelism: parallel;
+    import std.concurrency: send, thisTid, receiveTimeout;
     import std.variant: Variant;
+    import core.atomic: atomicLoad, atomicStore;
+    import std.datetime: seconds;
 
-    auto running = true;
-    auto code = 0;
+    shared running = true;
+    shared code = 0;
     send(thisTid, cast(immutable)init);
-    while (running) {
-        receive(
+    while (atomicLoad(running)) {
+        const recv = receiveTimeout(10.seconds,
             (in Action ra) {
                 // TODO: apply は store 内でするべき？
-                // reduce は shared でないといけない？
+                trace("Recv ", ra);
                 synchronized(s) 
                 {
                     s = s.reduce(ra);
                 }
                 auto uas = er.dispatch(ra);
-                foreach(ua; uas.parallel) // TODO: uas 全部の dispatch が終わらないと次の receive に入らない！
+                foreach(ua; uas) // TODO: uas 全部の dispatch が終わらないと次の receive に入らない！
                 {
                     auto a = s.dispatch(ua);
                     if (a.type == "exit")
                     {
-                        send(thisTid, immutable MedalExit(0));
+                        trace("Send exit message");
+                        atomicStore(running, false);
+                        atomicStore(code, 0);
+                        trace("Sent.");
                     }
                     else
                     {
+                        trace("Send ", a);
                         send(thisTid, cast(immutable)a);
+                        trace("Sent.");
                     }
                 }
             },
-            (in MedalExit me) {
-                running = false;
-                code = me.code;
-                send(thisTid, me);
-            },
             (Variant v) {
                 errorf("Unknown message: %s", v);
-                running = false;
-                code = 1;
+                atomicStore(running, false);
+                atomicStore(code, 1);
             },
         );
+        assert(recv);
     }
     return code;
 }
@@ -63,13 +58,12 @@ unittest
 {
     auto init = 
         new ReduceAction("", "mod", [Variable("", "a"): ValueType(Int(0))]);
-    auto s = new Store;
-    s.state = [
+    auto state = [
         Variable("", "a"): ValueType.init,
         Variable("", "b"): ValueType.init,
     ];
 
-    s.rootSaga = [
+    auto rootSaga = [
         "ping": new Task([
             new CommandHolder("echo ping.", 
                 new ReduceAction("", "mod", [Variable("", "b"): ValueType(Int(1))]))
@@ -83,6 +77,7 @@ unittest
                 new ReduceAction("", "mod", [Variable("", "exit"): ValueType(Int(0))]))
         ]),
     ];
+    auto s = new Store(state, rootSaga);
 
     auto er = new EventRules;
     er.rules = [
