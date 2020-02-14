@@ -1,46 +1,50 @@
 module medal.engine;
 
 import std.experimental.logger;
+import std.datetime: Duration, seconds;
 
-import medal.flux;
+import medal.primitives;
 
 /// 動作イメージ
-auto run(Store s, EventRules er, ReduceAction init)
+auto run(Store s, EventRule[] ers, ReduceAction init, Duration timeout = -1.seconds)
 {
     import std.concurrency: send, thisTid, receiveTimeout;
     import std.variant: Variant;
     import core.atomic: atomicLoad, atomicStore;
-    import std.datetime: seconds;
 
     shared running = true;
     shared code = 0;
-    send(thisTid, cast(immutable)init);
+    send(thisTid, init);
     while (atomicLoad(running)) {
-        const recv = receiveTimeout(10.seconds,
-            (in Action ra) {
+        const recv = receiveTimeout(timeout,
+            (in Event ra) {
+                import std.algorithm: map, filter;
                 // TODO: apply は store 内でするべき？
                 trace("Recv ", ra);
                 synchronized(s) 
                 {
-                    s = s.reduce(ra);
+                    s.reduce(ra);
                 }
-                auto uas = er.dispatch(ra);
+                if (ra.namespace == "medal") // TODO: should be handled by message
+                {
+                    if (auto val = MedalExit in ra.payload)
+                    {
+                        import sumtype: tryMatch;
+                        import medal.types: Int;
+                        atomicStore(running, false);
+                        auto c = (*val).tryMatch!((Int i) => i.i);
+                        errorf("Engine exited with %s", c);
+                        atomicStore(code, c);
+                        return;
+                    }
+                }
+                auto uas = ers.map!(er => er.dispatch(ra)).filter!(ua => !ua.isNull).map!"a.get";
                 foreach(ua; uas) // TODO: uas 全部の dispatch が終わらないと次の receive に入らない！
                 {
                     auto a = s.dispatch(ua);
-                    if (a.type == "exit")
-                    {
-                        trace("Send exit message");
-                        atomicStore(running, false);
-                        atomicStore(code, 0);
-                        trace("Sent.");
-                    }
-                    else
-                    {
-                        trace("Send ", a);
-                        send(thisTid, cast(immutable)a);
-                        trace("Sent.");
-                    }
+                    trace("Send ", a);
+                    send(thisTid, a);
+                    trace("Sent.");
                 }
             },
             (Variant v) {
@@ -56,41 +60,10 @@ auto run(Store s, EventRules er, ReduceAction init)
 
 unittest
 {
-    auto init = 
-        new ReduceAction("", "mod", [Variable("", "a"): ValueType(Int(0))]);
-    auto state = [
-        Variable("", "a"): ValueType.init,
-        Variable("", "b"): ValueType.init,
-    ];
-
-    auto rootSaga = [
-        "ping": new Task([
-            new CommandHolder("echo ping.", 
-                new ReduceAction("", "mod", [Variable("", "b"): ValueType(Int(1))]))
-        ]),
-        "pong": new Task([
-            new CommandHolder("echo pong.",
-                new ReduceAction("", "mod", [Variable("", "a"): ValueType(Int(2))]))
-        ]),
-        "smash": new Task([
-            new CommandHolder("echo 'smash!'", 
-                new ReduceAction("", "mod", [Variable("", "exit"): ValueType(Int(0))]))
-        ]),
-    ];
-    auto s = new Store(state, rootSaga);
-
-    auto er = new EventRules;
-    er.rules = [
-        new RuleType("", "ping", [
-            Variable("", "a"): ValueType(Int(0))
-        ]),
-        new RuleType("", "smash", [
-            Variable("", "a"): ValueType(Int(2))
-        ]),
-        new RuleType("", "pong", [
-            Variable("", "b"): ValueType(Int(1))
-        ])
-    ];
-    const code = run(s, er, init);
+    import dyaml: Loader;
+    import medal.parser: parse;
+    auto root = Loader.fromFile("examples/simple1.yml").load;
+    auto params = parse(root);
+    const code = run(params.store, params.rules, params.initEvent, 5.seconds);
     assert(code == 0);
 }

@@ -1,93 +1,3 @@
-module medal.flux;
-
-// TODO: JSONLLogger
-import std.experimental.logger;
-
-import sumtype;
-
-alias Event = ReduceAction;
-
-/// Assignments -> ActionType
-alias RuleType = UserAction;
-///
-class EventRules
-{
-    ///
-    auto dispatch(in Event e) @safe
-    {
-        import std.algorithm: filter;
-        return rules.filter!(r => e.match_(r));
-    }
-
-    ///
-    RuleType[] rules;
-}
-
-///
-auto match_(in Event e, RuleType r) @safe
-{
-    import std.array: byPair;
-    import std.range: front, empty;
-    import std.algorithm: all;
-    return r.payload.byPair.all!(kv => e.match_(kv.key, kv.value));
-}
-
-///
-auto match_(in Event e, Variable var, ValueType pat) @safe
-{
-    import std.array: byPair;
-    import std.algorithm: find;
-    import std.range: front, empty;
-    auto m = e.payload.byPair.find!(kv => kv.key == var); // @suppress(dscanner.suspicious.unmodified)
-    if (m.empty)
-    {
-        return false;
-    }
-    else
-    {
-        auto as = m.front.value;
-        return as == pat; // does not match `_`
-    }
-}
-
-///
-class Store
-{
-    ///
-    this(ValueType[const(Variable)] st, Task[ActionType] saga)
-    {
-        state = st;
-        rootSaga = saga;
-    }
-
-    ///
-    auto reduce(in ReduceAction action) @safe
-    {
-        import std.array: byPair;
-        import std.algorithm: each;
-        action.payload.byPair.each!(kv =>
-            cast()state[kv.key] = kv.value
-        );
-        return this;
-    }
-
-    ///
-    auto dispatch(in UserAction a)
-    {
-        auto c = rootSaga[a.type];
-        return fork(cast()c, cast()a);
-    }
-
-private:
-    ///
-    ValueType[const(Variable)] state;
-
-    ///
-    Task[ActionType] rootSaga;}
-
-alias ActionType = string;
-alias Payload = ValueType[Variable];
-//alias Meta = ValueType[Variable];
 
 // ActionType と Payload の取りうる値が異なる
 // UserAction // action-creator で生成される
@@ -100,129 +10,6 @@ alias Payload = ValueType[Variable];
 // - type: modify
 // - payload: pattern <- payload よりも pattern の方が適切
 
-///
-class Action
-{
-    ///
-    this(string ns, ActionType t, in Payload p) @safe
-    {
-        namespace = ns;
-        type = t;
-        payload = p;
-    }
-
-    ///
-    string namespace;
-    ///
-    ActionType type;
-    ///
-    const Payload payload;
-}
-
-alias UserAction = Action;
-alias ReduceAction = Action;
-
-///
-struct Int
-{
-    ///
-    int n;
-}
-///
-struct RETURN{}
-///
-struct STDOUT{}
-///
-struct STDERR{}
-
-alias ValueType = SumType!(Int, RETURN, STDOUT, STDERR);
-
-///
-struct Variable
-{
-    ///
-    this(string ns, string n) @safe
-    {
-        namespace = ns;
-        name = n;
-    }
-
-    ///
-    size_t toHash() const @safe pure nothrow
-    {
-        return name.hashOf(namespace.hashOf);
-    }
-
-    bool opEquals(ref const typeof(this) rhs) const @safe pure nothrow
-    {
-        return namespace == rhs.namespace && name == rhs.name;
-    }
-
-    ///
-    string namespace;
-    ///
-    string name;
-}
-
-///
-class Task
-{
-    ///
-    this(CommandHolder[] c) @safe
-    {
-        coms = c;
-    }
-
-    ///
-    CommandHolder[] coms;
-}
-
-///
-class CommandHolder
-{
-    ///
-    this(string com, ReduceAction a) @safe
-    {
-        command = com;
-        action = a;
-    }
-
-    ///
-    string command;
-    ///
-    ReduceAction action;
-}
-
-///
-ReduceAction fork(Task cb, UserAction action)
-{
-    import std.process: spawnShell, wait;
-    import std.array: array, byPair, assocArray, join;
-    import std.algorithm: any, map, fold;
-    import std.typecons: tuple;
-    auto ras = cb.coms.map!((c) {
-        infof("start `%s`", c.command);
-        scope(success) infof("end `%s`", c.command);
-        auto pid = spawnShell(c.command);
-        auto code = wait(pid);
-        auto out_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
-        auto err_ = ""; // @suppress(dscanner.suspicious.unmodified) // @suppress(dscanner.suspicious.unused_variable)
-        auto p = c.action.payload.byPair.map!(kv =>
-            kv.value.match!(
-                (STDOUT _) => tuple(kv.key, ValueType(Int(0))),
-                (STDERR _) => tuple(kv.key, ValueType(Int(1))),
-                (RETURN _) => tuple(kv.key, ValueType(Int(code))),
-                _ => tuple(kv.key, cast()kv.value),
-            )
-        ).assocArray;
-        auto type = c.action.payload.byKey.any!(var => var.name == "exit") ? "exit" : "mod";
-        return new ReduceAction(action.namespace, type, p);
-    }).array;
-    
-    auto type = ras.any!(a => a.type == "exit") ? "exit" : "mod";
-    auto p = ras.map!"a.payload.byPair".join.map!"tuple(a.key, cast()a.value)".assocArray;
-    return new ReduceAction(action.namespace, type, p);
-}
 
 // https://techblog.zozo.com/entry/android-flux
 
@@ -329,43 +116,9 @@ ReduceAction fork(Task cb, UserAction action)
 // https://qiita.com/mpyw/items/a816c6380219b1d5a3bf
 
 // Some term is imported from Flux, redux-saga
-/+
-alias UserActionType = string;
-
-struct ActionRule
-{
-    string namespace;
-    UserActionType type;
-    UserActionPattern pattern;
-}
-alias UserActionPattern = ValuePattern[Variable];
-
-struct ValuePattern
-{
-    // ValueType or `_`
-}
-
-enum ReduceActionType
-{
-    MODIFY, EXIT,
-}
-
-struct ReduceActionDef
-{
-    string namespace;
-    ReduceActionType type;
-    ReduceActionDecl payload;
-}
-alias ReduceActionDecl = ReduceActionValue[Variable];
-
-struct ReduceActionValue
-{
-    // ValueType or RETURN or STDOUT or STDERR
-}
-+/
 
 // Petri nets: http://www.peterlongo.it/Italiano/Informatica/Petri/index.html
-/+
+# Gap between Petri nets and the model for Medal
 懸念事項: ちゃんとしたペトリネットではない！
 - timed Petri nets (発火継続時間モデル)と近いが、以下の点が異なる
   - timed Petri nets
@@ -374,10 +127,40 @@ struct ReduceActionValue
     - 一定時間後に出力プレースにトークンがトランジションから移動する
     - 同一プレースに複数トークンが現れうる
     - Rust の move と対応？
-  - ep3 モデル
+  - medal モデル
     - 発火可能になっても入力プレースからトークンが消費されない
     - 一定時間後に出力プレースにトークンが**追加で**現れる
     - 同一プレースにはトークンは高々一つ
     - 既存のプログラミング言語のモデリングはこちらに近い
     - Rust の borrow と対応？
-+/
+
+
+
+# Log
+- medal log
+  - start/end event
+  - error event
+    - unmatched type
+    - uncaughted failure
+    - invalid input format
+- user log
+
+- nothing: --quiet
+- only user log: default
+- user log and error event: verbose
+- all: user log, error event and start/end event: veryverbose
+
+# Global States
+- namespace: medal # it is reserved by medal
+  - variable: exit
+    type: int
+    Note:
+      - captured by the engine
+      - terminate the engine with the given code
+      - 複数 namespace からここへの遷移がある場合には、内部的には $namespace.exit -(全ての exit を入力とする tr)-> medal.exit
+  - variable: signal
+    type: int or enum
+    Note: only valid if `configuration` has `catch-signal: [INT, TERM]`
+    - 異なる namespace に遷移する場合の挙動は？
+    - 内部的には medal.signal -> $namespace.signal (各 namespace ごと)
+  - exit と signal は namespace ごとに reserved でも良さそう

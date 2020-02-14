@@ -8,36 +8,31 @@ store:
   - variable: b
     type: int
 
-action-creator:
-  - pattern:
+transitions:
+  - type: ping
+    pattern:
       - variable: a
         value: 0
-    type: ping
-  - pattern:
-      - variable: a
-        value: 2
-    type: smash
-  - pattern:
-      - variable: b
-        value: 1
-    type: pong
-
-saga:
-  - take: ping
     tasks:
-      - put:
+      - out:
           - variable: b
             value: 1
         call: echo ping.
-  - take: pong
+  - type: smash
+    pattern:
+      - variable: a
+        value: 2
     tasks:
-      - put:
-        - variable: a
-          value: 2
-        call: echo pong.
-  - take: smash
-    tasks:
-      - put:
+      - out:
         - variable: exit
           value: 0
         call: echo 'smash!'
+  - type: pong
+    pattern:
+      - variable: b
+        value: 1
+    tasks:
+      - out:
+        - variable: a
+          value: 2
+        call: echo pong.
