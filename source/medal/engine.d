@@ -1,51 +1,49 @@
 module medal.engine;
 
 import std.experimental.logger;
+import std.concurrency: Tid;
 import std.datetime: Duration, seconds;
 
 import medal.flux;
 
 ///
-auto run(Store s, EventRule[] ers, ReduceAction init, Duration timeout = -1.seconds)
+auto run(Store s, EventRule[] rules, ReduceAction init, Duration timeout = -1.seconds)
 {
-    import std.concurrency: send, thisTid, receiveTimeout;
+    import std.concurrency: send, thisTid, receive, receiveTimeout;
     import std.variant: Variant;
     import core.atomic: atomicLoad, atomicStore;
+    import medal.types: Int;
 
     shared running = true;
     shared code = 0;
     send(thisTid, init);
     while (atomicLoad(running)) {
         const recv = receiveTimeout(timeout,
-            (in Event ra) {
-                import std.algorithm: map, filter;
-                // TODO: apply は store 内でするべき？
-                trace("Recv ", ra);
-                synchronized(s) 
+            (Event e) {
+                trace("Recv ", e);
+                s = s.reduce(e);
+                if (e.namespace == "medal")
                 {
-                    s.reduce(ra);
+                    auto skip = handleMedalEvent(e, thisTid);
+                    if (skip) return;
                 }
-                if (ra.namespace == "medal") // TODO: should be handled by message
+                auto uas = rules.dispatch(e);
+                foreach(ua; uas)
                 {
-                    if (auto val = MedalExit in ra.payload)
-                    {
-                        import sumtype: tryMatch;
-                        import medal.types: Int;
-                        atomicStore(running, false);
-                        auto c = (*val).tryMatch!((Int i) => i.i);
-                        errorf("Engine exited with %s", c);
-                        atomicStore(code, c);
-                        return;
-                    }
-                }
-                auto uas = ers.map!(er => er.dispatch(ra)).filter!(ua => !ua.isNull).map!"a.get";
-                foreach(ua; uas) // TODO: uas 全部の dispatch が終わらないと次の receive に入らない！
-                {
+                    import std.concurrency: spawn;
                     trace("create ", ua);
-                    auto a = s.dispatch(ua);
-                    trace("Send ", a);
-                    send(thisTid, a);
+                    auto saga = s.saga(ua);
+                    spawn((Tid tid, Task[] saga, UserAction ua) {
+                        auto a = fork(saga, ua);
+                        trace("Send ", a);
+                        send(tid, a);
+                    }, thisTid, saga, ua);
                 }
+            },
+            (Int i) {
+                tracef("Engine exited with %s", i.i);
+                atomicStore(running, false);
+                atomicStore(code, i.i);
             },
             (Variant v) {
                 errorf("Unknown message: %s", v);
@@ -56,6 +54,31 @@ auto run(Store s, EventRule[] ers, ReduceAction init, Duration timeout = -1.seco
         assert(recv);
     }
     return code;
+}
+
+///
+auto dispatch(EventRule[] rules, Event e) @safe pure nothrow
+{
+    import std.algorithm: map, filter;
+    return rules.map!(r => r.dispatch(e)).filter!(ua => !ua.isNull).map!"a.get";
+}
+
+/**
+ * Returns: true if the rest of the messages should be skipped or false otherwise
+ */
+auto handleMedalEvent(Event e, Tid tid) @trusted
+in(e.namespace == "medal")
+{
+    if (auto val = MedalExit in e.payload)
+    {
+        import std.concurrency: send, thisTid;
+        import sumtype: tryMatch;
+        import medal.types: Int;
+        auto i = (*val).tryMatch!((Int i) => i);
+        send(tid, i);
+        return true;
+    }
+    return false;
 }
 
 unittest

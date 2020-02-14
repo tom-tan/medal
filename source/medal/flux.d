@@ -177,10 +177,9 @@ class Store
     }
 
     ///
-    auto dispatch(UserAction a)
+    auto saga(UserAction a) const pure nothrow
     {
-        auto c = rootSaga[a.type];
-        return fork(c, a);
+        return rootSaga[a.type];
     }
 
     ///
