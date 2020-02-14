@@ -4,7 +4,7 @@ import dyaml;
 import sumtype;
 
 import medal.types;
-import medal.primitives;
+import medal.flux;
 
 @safe:
 
@@ -91,7 +91,9 @@ auto parse(Node root)
                            Variable(namespace, "exit"): Pattern(ExitType, SpecialPatterns.Any)
                        ]);
     saga["exit"] = [Task("medal", "", [MedalExit: Pattern(ExitType, "0")])]; // should be propagated
-    return tuple!(ReduceAction, "initEvent", Store, "store", EventRule[], "rules")(initEvent, new Store(vars, saga), rules); // @suppress(dscanner.style.long_line)
+    auto vs = () @trusted { return vars.assumeUnique; }();
+    auto ss = () @trusted { return saga.assumeUnique; }();
+    return tuple!(ReduceAction, "initEvent", Store, "store", EventRule[], "rules")(initEvent, new Store(vs, ss), rules); // @suppress(dscanner.style.long_line)
 }
 
 ///
@@ -126,16 +128,16 @@ auto parseTask(Node task, VariableType[Variable] vars, string ns) @trusted
 {
     import std.algorithm: map;
     import std.array: assocArray;
-    import std.exception: enforce;
+    import std.exception: enforce, assumeUnique;
 
     auto command = task.fetch("call", Node("")).as!string;
     auto vs = task["out"].generator.map!((n) {
         auto pat = parsePattern(n, vars, ns);
-        enforce(pat[1].pattern != SpecialPatterns.Any, "Invalid output pattern: _");
+        enforce(pat[1].pattern != SpecialPatterns.Any, "Invalid output pattern: `_`");
         return pat;
     }).assocArray;
 
-    return Task(ns, command, vs);
+    return Task(ns, command, vs.assumeUnique);
 }
 
 ///
@@ -153,7 +155,7 @@ auto fetch(Node node, string key, Node default_)
 
 unittest
 {
-    Node root = Loader.fromFile("examples/simple1.yml").load;
+    Node root = Loader.fromFile("examples/simple.yml").load;
     parse(root);
 }
 

@@ -3,9 +3,9 @@ module medal.engine;
 import std.experimental.logger;
 import std.datetime: Duration, seconds;
 
-import medal.primitives;
+import medal.flux;
 
-/// 動作イメージ
+///
 auto run(Store s, EventRule[] ers, ReduceAction init, Duration timeout = -1.seconds)
 {
     import std.concurrency: send, thisTid, receiveTimeout;
@@ -41,10 +41,10 @@ auto run(Store s, EventRule[] ers, ReduceAction init, Duration timeout = -1.seco
                 auto uas = ers.map!(er => er.dispatch(ra)).filter!(ua => !ua.isNull).map!"a.get";
                 foreach(ua; uas) // TODO: uas 全部の dispatch が終わらないと次の receive に入らない！
                 {
+                    trace("create ", ua);
                     auto a = s.dispatch(ua);
                     trace("Send ", a);
                     send(thisTid, a);
-                    trace("Sent.");
                 }
             },
             (Variant v) {
@@ -62,7 +62,7 @@ unittest
 {
     import dyaml: Loader;
     import medal.parser: parse;
-    auto root = Loader.fromFile("examples/simple1.yml").load;
+    auto root = Loader.fromFile("examples/simple.yml").load;
     auto params = parse(root);
     const code = run(params.store, params.rules, params.initEvent, 5.seconds);
     assert(code == 0);

@@ -27,7 +27,7 @@ EOS".outdent[0..$-1], args[0]);
     immutable yaml = args[1];
     if (!yaml.exists)
     {
-        error("Input file is not found: ", yaml);
+        writeln("Input file is not found: ", yaml);
         return 1;
     }
     Node root = Loader.fromFile(yaml).load;

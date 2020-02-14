@@ -1,4 +1,4 @@
-module medal.primitives;
+module medal.flux;
 
 import medal.types;
 import sumtype;
@@ -87,6 +87,14 @@ immutable class UserAction_
         namespace = ns;
         payload = p;
     }
+
+    ///
+    string toString() const
+    {
+        import std.format: format;
+        return format!"Action(%s, %s, %s)"(namespace, type, payload);
+    }
+
     ///
     ActionType type;
     ///
@@ -139,9 +147,17 @@ immutable struct EventRule_
 
 alias Event = ReduceAction;
 
+alias Task = immutable Task_;
 ///
-struct Task
+immutable struct Task_
 {
+    ///
+    string toString() const
+    {
+        import std.format: format;
+        return format!"Task(%s, %s, %s)"(namespace, command, patterns);
+    }
+
     ///
     string namespace;
     ///
@@ -154,10 +170,10 @@ struct Task
 class Store
 {
     ///
-    this(VariableType[Variable] ts, Task[][ActionType] saga)
+    this(immutable VariableType[Variable] ts, immutable Task[][ActionType] saga)
     {
         types = ts;
-        rootSaga = saga.dup;
+        rootSaga = saga;
     }
 
     ///
@@ -180,12 +196,18 @@ class Store
 
 private:
     ValueType[Variable] state;
-    VariableType[Variable] types;
-    Task[][ActionType] rootSaga;
+    immutable VariableType[Variable] types;
+    immutable Task[][ActionType] rootSaga;
 }
 
 struct Pattern
 {
+    string toString() const
+    {
+        import std.format: format;
+        return format!"%s"(pattern);
+    }
+
     VariableType type;
     string pattern;
 }
@@ -200,7 +222,7 @@ auto fork(in Task[] tasks, UserAction action) @trusted
     import std.algorithm: map;
     import std.experimental.logger: infof;
     immutable namespace = tasks[0].namespace; // assume all namespaces are the same
-    infof("start tasks");
+    infof("start tasks: %s, action: %s", tasks, action);
     scope(success) infof("end tasks");
     auto ras = tasks.map!((t) { // @suppress(dscanner.suspicious.unmodified)
         import std.exception: enforce;
