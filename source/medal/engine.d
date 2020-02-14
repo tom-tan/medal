@@ -51,7 +51,12 @@ auto run(Store s, EventRule[] rules, ReduceAction init, Duration timeout = -1.se
                 atomicStore(code, 1);
             },
         );
-        assert(recv);
+        if (!recv)
+        {
+            errorf("Timeout recv");
+            atomicStore(running, false);
+            atomicStore(code, 1);
+        }
     }
     return code;
 }

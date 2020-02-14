@@ -15,7 +15,7 @@ alias Type = string;
 alias Variable = immutable Variable_;
 
 ///
-struct Variable_
+immutable struct Variable_
 {
     ///
     this(string ns, string n) immutable @nogc pure nothrow
@@ -118,8 +118,8 @@ immutable struct EventRule_
     ///
     Pattern[Variable] rule;
 
-    ///
-    Nullable!UserAction dispatch(in Event e)
+    /// TODO: should consider the whole current state
+    Nullable!UserAction dispatch(in Event e) const pure nothrow
     {
         import std.array: byPair;
         import std.exception: assumeUnique;
@@ -170,7 +170,7 @@ immutable struct Task_
 class Store
 {
     ///
-    this(immutable VariableType[Variable] ts, immutable Task[][ActionType] saga)
+    this(immutable VariableType[Variable] ts, immutable Task[][ActionType] saga) @nogc pure nothrow
     {
         types = ts;
         rootSaga = saga;
@@ -183,7 +183,7 @@ class Store
     }
 
     ///
-    auto reduce(ReduceAction a)
+    auto reduce(ReduceAction a) pure nothrow
     {
         import std.array: byPair;
         import std.algorithm: each;
@@ -217,9 +217,9 @@ auto fork(in Task[] tasks, UserAction action) @trusted
     import std.process: spawnShell, wait;
     import std.array: array, byPair, assocArray, join;
     import std.typecons: tuple;
-
     import std.algorithm: map;
     import std.experimental.logger: infof;
+
     immutable namespace = tasks[0].namespace; // assume all namespaces are the same
     infof("start tasks: %s, action: %s", tasks, action);
     scope(success) infof("end tasks");
