@@ -1,7 +1,6 @@
 module medal.flux;
 
 import medal.types;
-import sumtype;
 
 @safe:
 
@@ -130,6 +129,7 @@ immutable struct EventRule_
             auto v = kv.key;
             if (auto val = v in e.payload)
             {
+                import sumtype: match;
                 auto pat = kv.value;
                 auto m = pat.type.match!(_ => _.fromEventPattern(pat.pattern, *val));
                 if (m.isNull) return typeof(return).init;
@@ -213,40 +213,51 @@ struct Pattern
 
 auto fork(in Task[] tasks, UserAction action) @trusted
 {
-    import std.exception: assumeUnique;
-    import std.process: spawnShell, wait;
-    import std.array: array, byPair, assocArray, join;
-    import std.typecons: tuple;
+    import std.array: assocArray, join;
     import std.algorithm: map;
+    import std.exception: assumeUnique;
     import std.experimental.logger: infof;
 
     immutable namespace = tasks[0].namespace; // assume all namespaces are the same
     infof("start tasks: %s, action: %s", tasks, action);
     scope(success) infof("end tasks");
-    auto ras = tasks.map!((t) { // @suppress(dscanner.suspicious.unmodified)
-        import std.exception: enforce;
-        import std.stdio: stdout, stderr;
-        import std.range: empty;
-        CommandResult result;
-        if (!t.command.empty)
-        {
-            infof("start command `%s`", t.command);
-            scope(success) infof("end command `%s`", t.command);
-            auto pid = spawnShell(t.command);
-            result.code = wait(pid);
-            result.stdout = stdout;
-            result.stderr = stderr;
-        }
-        return t.patterns.byPair.map!((kv) {
-            auto var = kv.key;
-            auto pat = kv.value;
-            auto val = pat.type.match!(
-                _ => _.fromOutputPattern(pat.pattern, result),
-            );
-            enforce(!val.isNull, "Invalid output value"); // TODO
-            return tuple(var, val.get);
-        });
-    }).join.assocArray;
+    auto ras = tasks.map!(t => fork(t, action)).join.assocArray; // @suppress(dscanner.suspicious.unmodified)
     auto payload = ras.assumeUnique;
     return new ReduceAction(namespace, payload);
+}
+
+///
+auto fork(in Task task, UserAction action) @trusted
+{
+    import std.algorithm: map;
+    import std.array: byPair;
+    import std.range: empty;
+
+    CommandResult result;
+    if (!task.command.empty)
+    {
+        import std.experimental.logger: infof;
+        import std.process: spawnShell, wait;
+        import std.stdio: stdout, stderr;
+
+        infof("start command `%s`", task.command);
+        scope(success) infof("end command `%s`", task.command);
+        auto pid = spawnShell(task.command);
+        result.code = wait(pid);
+        result.stdout = stdout;
+        result.stderr = stderr;
+    }
+    return task.patterns.byPair.map!((kv) {
+        import std.exception: enforce;
+        import std.typecons: tuple;
+        import sumtype: match;
+
+        auto var = kv.key;
+        auto pat = kv.value;
+        auto val = pat.type.match!(
+            _ => _.fromOutputPattern(pat.pattern, result),
+        );
+        enforce(!val.isNull, "Invalid output value"); // TODO
+        return tuple(var, val.get);
+    });
 }
