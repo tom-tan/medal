@@ -152,6 +152,26 @@ alias Task = immutable Task_;
 immutable struct Task_
 {
     ///
+    this(string ns, string com, immutable Pattern[Variable] pat) immutable
+    {
+        namespace = ns;
+        command_ = com;
+        patterns = pat;
+    }
+
+    ///
+    auto command(UserAction action) const
+    {
+        return command_;
+    }
+
+    ///
+    auto command() const @nogc pure nothrow
+    {
+        return command_;
+    }
+
+    ///
     string toString() const
     {
         import std.format: format;
@@ -161,7 +181,7 @@ immutable struct Task_
     ///
     string namespace;
     ///
-    string command;
+    string command_;
     ///
     Pattern[Variable] patterns;
 }
@@ -241,8 +261,8 @@ auto fork(in Task task, UserAction action) @trusted
         import std.stdio: stdout, stderr;
 
         infof("start command `%s`", task.command);
-        scope(success) infof("end command `%s`", task.command);
-        auto pid = spawnShell(task.command);
+        scope(success) infof("end command `%s`", task.command(action));
+        auto pid = spawnShell(task.command(action));
         result.code = wait(pid);
         result.stdout = stdout;
         result.stderr = stderr;
