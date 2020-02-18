@@ -132,9 +132,12 @@
     - 一定時間後に出力プレースにトークンが**追加で**現れる
     - 同一プレースにはトークンは高々一つ
     - 既存のプログラミング言語のモデリングはこちらに近い
+      - Redux などのモデルはこちら？
     - Rust の borrow と対応？
 
-
+- task[] <-> transition の対応関係
+  - 遷移だけみると複数 task を縮約したものが transition に相当
+  - 副作用が絡むため、厳密には異なる
 
 # Log
 - medal log
@@ -142,8 +145,11 @@
   - error event
     - unmatched type
     - uncaughted failure
-    - invalid input format
+    - invalid input/output format
 - user log
+  - 毎回コマンドを実行して加工するのは非効率？
+  - fluentd のように while などで回す？
+  - 優先度は低い
 
 - nothing: --quiet
 - only user log: default
@@ -163,4 +169,67 @@
     Note: only valid if `configuration` has `catch-signal: [INT, TERM]`
     - 異なる namespace に遷移する場合の挙動は？
     - 内部的には medal.signal -> $namespace.signal (各 namespace ごと)
+    - 型は enum (数字は portable ではない)
   - exit と signal は namespace ごとに reserved でも良さそう
+    - 特殊な名前付けをしたほうがいいかも
+  - `task` 中の変数展開用の文法は？
+      - $ は環境変数とかぶるのでなし
+        - 環境変数を参照しているのか、変数を参照しているのか判断できない
+        - 判断する必要はない？
+      - `%foo%` とか？ (Windows 風)
+
+# Medal の方向性
+- どちらに寄せる？
+  - Petri net などの形式モデル
+  - Redux などのアーキテクチャ
+- どちらの場合でも動く
+  - 現状はスタンスが中途半端
+  - どちらかに寄せたほうが実装も説明もしやすい
+- Pros/Cons
+  - モデル
+    - Pros
+      - 既存の検証アルゴリズムが適用できる
+      - 説明しやすい
+      - ep3 の中間言語がそのまま使える
+    - Cons
+      - 現在のバックエンド実装と差異がある
+        - 実装の修正が必要
+      - 検証が primary goal ではない
+  - アーキテクチャ
+    - Pros
+      - 現在のバックエンド実装をそのまま持っていける
+      - 既存処理系(Reduxなど)とだいたい同じ
+    - Cons
+      - ep3 の動作モデルの修正が必要
+      - 相当するモデルがない
+        - == 到達性などの検証ができない
+          - 検証することが primary goal ではないので問題ない？
+        - 適切なモデルが欲しい
+      - 似てるアーキテクチャはあるけど同じアーキテクチャはない
+        - 説明が必要
+
+- トレードオフがある？
+  - モデルに寄せるとエラー処理などに問題が出るかも
+    - 複数 task は単一の transition にまとめることになる (はず)
+      - 副作用の問題がある
+    - task の一つがエラーになったら、それまでに起きた副作用はどうするべき？
+      - $? を捕捉しなかった場合
+    - atomic 性を保証するべき？
+  - アーキテクチャに寄せると検証ができないかも
+    - Petri net の到達性判定などのアルゴリズムをそのまま適用はできない
+      - でも検証が目的ではない
+    - 検証方法が確立される or 既存モデルとの対応関係がはっきりすると、Redux などに応用が効く
+      - 新規モデルを提案、は目的に対して遠回りすぎるが…
+      - こちらを突き詰めるほうが面白い
+        - でも誰かやってるよなぁ
+        - やっててほしい
+        - saga pattern の形式モデル
+
+- そもそもの問題
+  - ep3 の中間言語(Petri net)と実際の動作モデルが異なる！
+
+- 当面は？
+  - 現状の動作モデルに寄せて medal を実装
+    - task -> ReduceAction -> send it を繰り返す
+  - あとから直す
+    - それは state transition engine と言ってもいいのか？
