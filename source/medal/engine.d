@@ -7,9 +7,9 @@ import std.datetime: Duration, seconds;
 import medal.flux;
 
 ///
-auto run(Store s, EventRule[] rules, ReduceAction init, Duration timeout = -1.seconds)
+auto run(Store s, EventRule[] rules, ReduceAction init)
 {
-    import std.concurrency: send, thisTid, receive, receiveTimeout;
+    import std.concurrency: send, thisTid, receive;
     import std.variant: Variant;
     import core.atomic: atomicLoad, atomicStore;
     import medal.types: Int;
@@ -18,13 +18,13 @@ auto run(Store s, EventRule[] rules, ReduceAction init, Duration timeout = -1.se
     shared code = 0;
     send(thisTid, init);
     while (atomicLoad(running)) {
-        const recv = receiveTimeout(timeout,
+        receive(
             (Event e) {
                 trace("Recv ", e);
                 s = s.reduce(e);
                 if (e.namespace == "medal")
                 {
-                    auto skip = handleMedalEvent(e, thisTid);
+                    auto skip = handleMedalEvent(thisTid, e);
                     if (skip) return;
                 }
                 auto uas = rules.dispatch(e);
@@ -51,12 +51,6 @@ auto run(Store s, EventRule[] rules, ReduceAction init, Duration timeout = -1.se
                 atomicStore(code, 1);
             },
         );
-        if (!recv)
-        {
-            errorf("Timeout recv");
-            atomicStore(running, false);
-            atomicStore(code, 1);
-        }
     }
     return code;
 }
@@ -69,14 +63,14 @@ auto dispatch(EventRule[] rules, Event e) @safe pure nothrow
 }
 
 /**
- * Returns: true if the rest of the messages should be skipped or false otherwise
+ * Returns: true if the rest of the events should be skipped or false otherwise
  */
-auto handleMedalEvent(Event e, Tid tid) @trusted
+auto handleMedalEvent(Tid tid, Event e) @trusted
 in(e.namespace == "medal")
 {
     if (auto val = MedalExit in e.payload)
     {
-        import std.concurrency: send, thisTid;
+        import std.concurrency: send;
         import sumtype: tryMatch;
         import medal.types: Int;
         auto i = (*val).tryMatch!((Int i) => i);
@@ -92,6 +86,6 @@ unittest
     import medal.parser: parse;
     auto root = Loader.fromFile("examples/simple.yml").load;
     auto params = parse(root);
-    const code = run(params.store, params.rules, params.initEvent, 5.seconds);
+    const code = run(params.store, params.rules, params.initEvent);
     assert(code == 0);
 }
