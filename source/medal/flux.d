@@ -37,7 +37,8 @@ immutable struct Variable_
     string toString() const
     {
         import std.format: format;
-        return format!"`%s:%s`"(namespace, name);
+        import std.range: empty;
+        return namespace.empty ? name : format!"%s::%s"(namespace, name);
     }
 
     ///
@@ -162,7 +163,38 @@ immutable struct Task_
     ///
     auto command(UserAction action) const
     {
-        return command_;
+        import std.algorithm: fold;
+        import std.array: byPair, replace;
+        return action.payload.byPair.fold!((acc, p) {
+            import std.conv: to;
+            auto var = p.key;
+            auto varname = namespace == var.namespace ? var.name : var.to!string;
+            return acc.replace("#{"~varname~"}", p.value.to!string);
+        })(command_);
+    }
+
+    ///
+    unittest
+    {
+        auto t = Task("", "echo #{foo}", (Pattern[Variable]).init);
+        auto inp = new UserAction("", "", [Variable("", "foo"): ValueType(Int(3))]);
+        assert(t.command(inp) == "echo 3");
+    }
+
+    /// An example for the same namespace
+    unittest
+    {
+        auto t = Task("ns", "echo #{foo}", (Pattern[Variable]).init);
+        auto inp = new UserAction("", "", [Variable("ns", "foo"): ValueType(Int(3))]);
+        assert(t.command(inp) == "echo 3");
+    }
+
+    /// An example for different namespaces
+    unittest
+    {
+        auto t = Task("", "echo #{ns::foo}", (Pattern[Variable]).init);
+        auto inp = new UserAction("", "", [Variable("ns", "foo"): ValueType(Int(3))]);
+        assert(t.command(inp) == "echo 3");
     }
 
     ///
@@ -189,7 +221,7 @@ immutable struct Task_
     string namespace;
     ///
     string command_;
-    ///
+    /// output patterns
     Pattern[Variable] patterns;
 }
 
