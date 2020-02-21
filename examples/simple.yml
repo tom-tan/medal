@@ -15,8 +15,8 @@ transitions:
         value: 0
     tasks:
       - out:
-          - variable: b
-            value: 1
+        - variable: b
+          value: 1
         call: echo ping.
   - type: smash
     pattern:
