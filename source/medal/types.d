@@ -21,11 +21,11 @@ struct CommandResult
 {
     import std.stdio: File;
     ///
-    File stdout;
+    Nullable!string stdout;
     ///
-    File stderr;
+    Nullable!string stderr;
     ///
-    int code;
+    Nullable!int code;
 }
 
 ///
@@ -49,13 +49,16 @@ struct Int
         }
         catch(ConvException)
         {
+            import std.experimental.logger: errorf;
+            import std.exception: assumeWontThrow;
+            debug errorf("Unknown value for int: `%s`", s).assumeWontThrow;
             return typeof(return).init;
         }
         catch(Exception) 
         {
-            import std.experimental.logger: warningf;
+            import std.experimental.logger: errorf;
             import std.exception: assumeWontThrow;
-            debug warningf("Unexpected exception when converting `%s` to int", s).assumeWontThrow;
+            debug errorf("Unexpected exception when converting `%s` to int", s).assumeWontThrow;
             return typeof(return).init;
         }
     }
@@ -99,11 +102,13 @@ struct MedalType(T)
     Nullable!ValueType fromOutputPattern(string pat, CommandResult result) const @trusted
     {
         import std.conv: to;
+        import std.stdio: File;
+        import std.string: chomp;
         switch(pat)
         {
-        case SpecialPatterns.Stdout: return T.fromString(result.stdout.readln);
-        case SpecialPatterns.Stderr: return T.fromString(result.stderr.readln);
-        case SpecialPatterns.Return: return T.fromString(result.code.to!string);
+        case SpecialPatterns.Stdout: return T.fromString(File(result.stdout.get).readln.chomp);
+        case SpecialPatterns.Stderr: return T.fromString(File(result.stderr.get).readln.chomp);
+        case SpecialPatterns.Return: return T.fromString(result.code.get.to!string);
         default:                     return T.fromString(pat);
         }
     }

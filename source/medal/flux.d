@@ -179,6 +179,13 @@ immutable struct Task_
     }
 
     ///
+    bool needs(SpecialPatterns pat) const @nogc pure nothrow
+    {
+        import std.algorithm: canFind;
+        return patterns.byValue.canFind!(p => p.pattern == pat);
+    }
+
+    ///
     string namespace;
     ///
     string command_;
@@ -250,23 +257,47 @@ auto fork(in Task[] tasks, UserAction action) @trusted
 auto fork(in Task task, UserAction action) @trusted
 {
     import std.algorithm: map;
-    import std.array: byPair;
+    import std.array: array, byPair;
     import std.range: empty;
 
     CommandResult result;
+    immutable needStdout = task.needs(SpecialPatterns.Stdout);
+    immutable needStderr = task.needs(SpecialPatterns.Stderr);
+
     if (!task.command.empty)
     {
         import std.experimental.logger: infof;
         import std.process: spawnShell, wait;
-        import std.stdio: stdout, stderr;
+        import std.stdio: File, stdin, stdout, stderr;
+        auto sout = needStdout ? File("stdout", "w") : stdout; // TODO: should be random
+        auto serr = needStderr ? File("stderr", "w") : stderr; // TODO: should be random
 
         infof("start command `%s`", task.command);
         scope(success) infof("end command `%s`", task.command(action));
-        auto pid = spawnShell(task.command(action));
+        auto pid = spawnShell(task.command(action), stdin, sout, serr);
         result.code = wait(pid);
-        result.stdout = stdout;
-        result.stderr = stderr;
+        if (needStdout)
+        {
+            result.stdout = sout.name;
+        }
+        if (needStderr)
+        {
+            result.stderr = serr.name;
+        }
     }
+    scope(exit)
+    {
+        import std.file: remove;
+        if (needStdout)
+        {
+            result.stdout.get.remove;
+        }
+        if (needStderr)
+        {
+            result.stderr.get.remove;
+        }
+    }
+
     return task.patterns.byPair.map!((kv) {
         import std.exception: enforce;
         import std.typecons: tuple;
@@ -279,5 +310,5 @@ auto fork(in Task task, UserAction action) @trusted
         );
         enforce(!val.isNull, "Invalid output value"); // TODO
         return tuple(var, val.get);
-    });
+    }).array;
 }
