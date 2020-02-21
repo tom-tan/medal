@@ -150,6 +150,7 @@
   - 毎回コマンドを実行して加工するのは非効率？
   - fluentd のように while などで回す？
   - 優先度は低い
+  - task として実装すれば代替できる
 
 - nothing: --quiet
 - only user log: default
