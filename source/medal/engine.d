@@ -34,9 +34,15 @@ auto run(Store s, EventRule[] rules, ReduceAction init)
                     trace("create ", ua);
                     auto saga = s.saga(ua);
                     spawn((Tid tid, Task[] saga, UserAction ua) {
-                        auto a = fork(saga, ua);
-                        trace("Send ", a);
-                        send(tid, a);
+                        try{
+                            auto ra = fork(saga, ua);
+                            trace("Send ", ra);
+                            send(tid, ra);
+                        }
+                        catch (Throwable e) // @suppress(dscanner.suspicious.catch_em_all)
+                        {
+                            send(tid, cast(shared)e);
+                        }
                     }, thisTid, saga, ua);
                 }
             },
@@ -44,6 +50,16 @@ auto run(Store s, EventRule[] rules, ReduceAction init)
                 tracef("Engine exited with %s", i.i);
                 atomicStore(running, false);
                 atomicStore(code, i.i);
+            },
+            (shared Exception e) {
+                import std.algorithm: each;
+                (cast()e).each!error;
+                send(thisTid, Int(1));
+            },
+            (shared Error e) {
+                import std.algorithm: each;
+                (cast()e).each!fatal;
+                send(thisTid, Int(1));
             },
             (Variant v) {
                 errorf("Unknown message: %s", v);
