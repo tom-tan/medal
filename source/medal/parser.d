@@ -9,7 +9,7 @@ import medal.flux;
 @safe:
 
 ///
-auto parse(Node root) pure
+auto parse(Node root)
 {
     import std.exception: assumeUnique, enforce;
     import std.typecons: tuple;
@@ -144,7 +144,7 @@ auto parseTask(Node task, VariableType[Variable] vars, string ns) @trusted
 }
 
 ///
-auto fetch(Node node, string key, Node default_) pure
+auto fetch(Node node, string key, Node default_)
 {
     if (auto ret = key in node)
     {
