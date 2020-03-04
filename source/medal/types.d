@@ -8,6 +8,15 @@ import sumtype;
 alias ValueType = SumType!(Int, Str);
 alias VariableType = SumType!(MedalType!Int, MedalType!Str);
 
+version(unittest)
+{
+    static this()
+    {
+        import std.experimental.logger: globalLogLevel, LogLevel;
+        globalLogLevel = LogLevel.off;
+    }
+}
+
 ///
 enum SpecialPatterns
 {
