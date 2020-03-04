@@ -105,3 +105,13 @@ unittest
     const code = run(params.store, params.rules, params.initEvent);
     assert(code == 0);
 }
+
+unittest
+{
+    import dyaml: Loader;
+    import medal.parser: parse;
+    auto root = Loader.fromFile("examples/simple-str.yml").load;
+    auto params = parse(root);
+    const code = run(params.store, params.rules, params.initEvent);
+    assert(code == 0);
+}

@@ -134,7 +134,7 @@ immutable struct EventRule_
                 auto pat = kv.value;
                 auto m = pat.type.match!(_ => _.fromEventPattern(pat.pattern, *val));
                 if (m.isNull) return typeof(return).init;
-                p[v] = m.get;
+                () @trusted { p[v] = m.get; }();  // due to ValueType#opAsign
             }
             else
             {
@@ -247,7 +247,8 @@ class Store
         import std.array: byPair;
         import std.algorithm: each;
         a.payload.byPair.each!(kv =>
-            state[kv.key] = kv.value
+            // due to ValueType#opAsign
+            () @trusted { state[kv.key] = kv.value; }()
         );
         return this;
     }

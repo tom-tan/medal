@@ -5,7 +5,8 @@ import sumtype;
 
 @safe:
 
-alias ValueType = SumType!(Int);
+alias ValueType = SumType!(Int, Str);
+alias VariableType = SumType!(MedalType!Int, MedalType!Str);
 
 ///
 enum SpecialPatterns
@@ -19,7 +20,6 @@ enum SpecialPatterns
 ///
 struct CommandResult
 {
-    import std.stdio: File;
     ///
     Nullable!string stdout;
     ///
@@ -39,8 +39,9 @@ struct Int
         import std.conv: to;
         return i.to!string;
     }
+
     ///
-    static Nullable!ValueType fromString(string s) @safe pure nothrow
+    static Nullable!ValueType fromString(string s) pure nothrow
     {
         import std.conv: to, ConvException;
         try
@@ -64,7 +65,7 @@ struct Int
     }
 
     ///
-    static Nullable!ValueType fromEventPattern(string pat, ValueType val) @safe pure nothrow
+    static Nullable!ValueType fromEventPattern(string pat, ValueType val) pure nothrow
     in(isValidInputPattern(pat))
     {
         switch(pat)
@@ -75,25 +76,62 @@ struct Int
     }
 
     ///
-    static bool isValidInputPattern(string pat) @safe pure nothrow
+    static bool isValidInputPattern(string pat) pure nothrow
     {
         return pat == SpecialPatterns.Any || !fromString(pat).isNull;
     }
 }
 
-alias VariableType = SumType!(MedalType!Int);
+/**
+ * Tentative type for string-like types
+ * TODO: It should be divided more appropriate types such as enum and File etc.
+ */
+struct Str
+{
+    ///
+    string s;
+
+    ///
+    string toString() const
+    {
+        return s;
+    }
+
+    ///
+    static Nullable!ValueType fromString(string s) pure nothrow
+    {
+        return ValueType(Str(s)).nullable;
+    }
+
+    ///
+    static Nullable!ValueType fromEventPattern(string pat, ValueType val) pure nothrow
+    in(isValidInputPattern(pat))
+    {
+        switch(pat)
+        {
+        case SpecialPatterns.Any: return val.nullable;
+        default: return fromString(pat).get == val ? val.nullable : typeof(return).init;
+        }
+    }
+
+    ///
+    static bool isValidInputPattern(string pat) pure nothrow
+    {
+        return pat == SpecialPatterns.Any || !fromString(pat).isNull;
+    }
+}
 
 ///
 struct MedalType(T)
 {
     ///
-    Nullable!ValueType fromString(string s) const @safe pure nothrow
+    Nullable!ValueType fromString(string s) const pure nothrow
     {
         return T.fromString(s);
     }
 
     ///
-    Nullable!ValueType fromEventPattern(string pat, ValueType val) const @safe pure nothrow
+    Nullable!ValueType fromEventPattern(string pat, ValueType val) const pure nothrow
     {
         return T.fromEventPattern(pat, val);
     }
@@ -114,7 +152,7 @@ struct MedalType(T)
     }
 
     ///
-    bool isValidInputPattern(string pat) @safe pure nothrow
+    bool isValidInputPattern(string pat) pure nothrow
     {
         return T.isValidInputPattern(pat);
     }

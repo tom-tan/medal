@@ -9,7 +9,7 @@ import medal.flux;
 @safe:
 
 ///
-auto parse(Node root)
+auto parse(Node root) pure
 {
     import std.exception: assumeUnique, enforce;
     import std.typecons: tuple;
@@ -38,6 +38,9 @@ auto parse(Node root)
         case "int":
             vars[v] = MedalType!Int.init;
             break;
+        case "string":
+            vars[v] = MedalType!Str.init;
+            break;
         default:
             throw new Exception(format!"Invalid type for %s: %s"(v, t));
         }
@@ -47,7 +50,7 @@ auto parse(Node root)
             immutable str = default_.as!string;
             auto val = vars[v].match!(_ => _.fromString(str));
             enforce(!val.isNull, format!"Invalid initial value for %s: %s"(v, str));
-            initPayload[v] = val.get;
+            () @trusted { initPayload[v] = val.get; }(); // due to ValueType#opAsign
         }
     }
     vars[Variable(namespace, "exit")]= MedalType!Int.init;
@@ -141,7 +144,7 @@ auto parseTask(Node task, VariableType[Variable] vars, string ns) @trusted
 }
 
 ///
-auto fetch(Node node, string key, Node default_)
+auto fetch(Node node, string key, Node default_) pure
 {
     if (auto ret = key in node)
     {
@@ -159,3 +162,8 @@ unittest
     parse(root);
 }
 
+unittest
+{
+    Node root = Loader.fromFile("examples/simple-str.yml").load;
+    parse(root);
+}
