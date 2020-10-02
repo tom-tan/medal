@@ -234,3 +234,72 @@
     - task -> ReduceAction -> send it を繰り返す
   - あとから直す
     - それは state transition engine と言ってもいいのか？
+
+- scope guard 的な仕組みを実装することで、Saga パターンも実現する
+  - ACID 特性のうち ACD を保証する仕組み
+    - medal の状態的には I も保証できる
+    - 厳密なシステムの状態的には、コマンドの種類による
+      - 例えば EC2 にインスタンスを建てるコマンドが含まれる transition は、ダッシュボードから作成途中のインスタンスを観測できてしまう
+      - ここに抽象化の漏れがある
+        - 利便性のために漏らしてもいいのでは、というスタンス
+    - medal の状態はメモリのみなので、Dは保証できないはず
+  - トランザクション成功時にも実行したい場合がある
+    - allocate -> deallocate など
+  - 失敗時のみに実行したい場合もある
+    - 失敗時のメッセージ表示など
+      - メッセージ表示もタスクとして実行すべきか？という問題はある
+- 現在の実装の問題: 失敗時の遷移もナイーブな状態遷移として設計しないといけない
+  - やりたいことに対して実装が複雑すぎる
+  - 欲しいのは scope guard (dlang)、defer (golang)、try-with-resource (java)
+    - 継続モナド + Loan パターン
+      - https://qiita.com/jwhaco/items/224113324fd454b8ca77
+    - Q. これらの言語を使えばいいのでは？
+      - A. プログラミングはできるだけしたくない！
+        - Medal も yet another プログラミング言語だ、というツッコミはありうる
+  - on-failure の冪等性の確保が必要
+    - コマンド側の責任？
+  - 以下、実装例
+
+```yaml
+transitions:
+  - in:
+      - variable: cwl
+        value: _
+      - variable: job
+        value: _
+      # TODO: prepare で確保する計算資源はどこで待つ？
+      # tasks 内で待ちたい <- 実装が複雑になる？
+    saga: # saga 内の変数は transaction 内で閉じている方がよい
+      - id: allocate
+        run: alloc
+        on-exit:
+          - id: deallocate
+            run: dealloc
+            logger: ??? # 未定
+          - id: dealloc-logger # 当面は logger 相当を task で実装する
+      - id: stage-in
+      - id: generate-commandd
+      - id: execute
+      - id: stage-out
+    out:
+      - variable: ExecutionState
+        value: success
+        on: success # success, failure, exit?
+      - variable: cwl.output.json
+        value: stage-out$cwl.output.json # stage-out の出力を捕捉したい
+        on: success
+      - variable: ExecutionState
+        value: permanentFailer
+        on: failure
+      - variable: message # 必要か？
+        value: #{lasterr}$error # 最後に失敗した task の出力を捕捉したい
+tasks:
+  # task を分けて定義する必要はあるか？
+  # 複数の transaction で同じ task を使うことがあるのかどうか
+  # 再利用したいのは task ではなくコマンドでは？
+  # ^C 時にどうしたい？
+  # - トランザクションはちゃんともとに戻される
+  # - 終了時のメッセージ出すくらいしかすることがない？
+  - id: allocate
+    ...
+```
