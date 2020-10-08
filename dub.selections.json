@@ -1,8 +1,9 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"dyaml": "0.8.0",
-		"sumtype": "0.9.4",
+		"dyaml": "0.8.3",
+		"silly": "1.0.2",
+		"sumtype": "0.9.6",
 		"tinyendian": "0.2.0"
 	}
 }
