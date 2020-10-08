@@ -134,7 +134,7 @@ immutable struct EventRule_
                 auto pat = kv.value;
                 auto m = pat.type.match!(_ => _.fromEventPattern(pat.pattern, *val));
                 if (m.isNull) return typeof(return).init;
-                () @trusted { p[v] = m.get; }();  // due to ValueType#opAsign
+                () @trusted { p[v] = m.get; }();  // due to ValueType#opAssign
             }
             else
             {
