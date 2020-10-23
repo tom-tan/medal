@@ -1,4 +1,4 @@
-module medal.task;
+module medal.transition;
 
 import core.sys.posix.signal;
 import std;
@@ -80,9 +80,9 @@ class Token
         value = val;
     }
 
-    override bool opEquals(Object other) const pure
+    override bool opEquals(in Object other) const pure
     {
-        if (auto t = cast(Token)other)
+        if (auto t = cast(const Token)other)
         {
             return value == t.value;
         }
@@ -101,9 +101,13 @@ class Token
     string value;
 }
 
+///
 class InputPattern
 {
-    Token match(Token token) const pure
+    this(string pat) { pattern = pat; }
+
+    ///
+    const(Token) match(in Token token) const pure
     {
         switch(pattern) with(SpecialPattern)
         {
@@ -143,50 +147,53 @@ struct OutputPattern
 // https://issues.dlang.org/show_bug.cgi?id=13930 (solved by Issue 21296)
 // +1
 //alias BindingElement = Token[Place];
-class BindingElement
+alias BindingElement = immutable BindingElement_;
+///
+immutable class BindingElement_
 {
     ///
-    this(Token[Place] tokenElems) pure
+    this(immutable Token[Place] tokenElems) pure
     {
         tokenElements = tokenElems;
     }
 
-    bool opEquals(const Token[Place] otherTokenElements) const
+    bool opEquals(in Token[Place] otherTokenElements) const
     {
-        return tokenElements == otherTokenElements;
+        return cast(const(Token[Place]))tokenElements == otherTokenElements;
     }
 
-    override string toString() const pure
+    string toString() pure
     {
         return tokenElements.to!string;
     }
 
-    Token[Place] tokenElements;
+    immutable Token[Place] tokenElements;
 }
 
+alias ArcExpressionFunction = immutable ArcExpressionFunction_;
 ///
-class ArcExpressionFunction
+immutable class ArcExpressionFunction_
 {
     ///
-    this(OutputPattern[Place] pat)
+    this(immutable OutputPattern[Place] pat) pure
     {
         pattern = pat;
     }
 
     ///
-    BindingElement apply(CommandResult result) const pure
+    immutable(BindingElement) apply(CommandResult result) pure
     {
         auto tokenElems = pattern.byPair.map!((kv) {
             auto place = kv.key;
             auto pat = kv.value;
             return tuple(place, pat.match(result));
         }).assocArray;
-        return new BindingElement(tokenElems);
+        return new BindingElement(tokenElems.assumeUnique);
     }
 
     unittest
     {
-        auto aef = new ArcExpressionFunction((OutputPattern[Place]).init);
+        auto aef = new ArcExpressionFunction((immutable OutputPattern[Place]).init);
         auto be = aef.apply(CommandResult.init);
         assert(be.tokenElements.empty);
     }
@@ -225,7 +232,7 @@ class ArcExpressionFunction
     }
 
     ///
-    bool need(SpecialPattern pat) const pure
+    bool need(SpecialPattern pat) pure
     {
         return pattern.byValue.canFind!(p => p.pattern == pat);
     }
@@ -236,6 +243,10 @@ class ArcExpressionFunction
 ///
 class Guard
 {
+    this(InputPattern[Place] pat)
+    {
+        patterns = pat;
+    }
     /+
     BindingElement match(State s) const
     {
@@ -248,47 +259,42 @@ class Guard
 /// 発火継続モデルをベースとする
 /// ペトリネットの理論と実践 p.35
 
-// Stub impl for state
-alias State = Token[Place];
-
 ///
-abstract class Transition
+alias Transition = immutable Transition_;
+///
+abstract immutable class Transition_
 {
     ///
-    abstract void fire(BindingElement be, Tid networkTid) const;
+    abstract void fire(in BindingElement be, Tid networkTid);
 
     ///
-    BindingElement fireable(State)(State s) const pure
-    // out(result; this.fireable(result))
+    BindingElement fireable(Store)(in Store s) pure
     {
         Token[Place] tokenElems;
         foreach(place, ipattern; guard.patterns.byPair)
         {
-            if (auto token = place in s) // or tokens?
+            if (auto tokens = place in s.state)
             {
-                if (auto be = ipattern.match(*token))
+                auto rng = (*tokens)[].find!(t => ipattern.match(t));
+                if (!rng.empty)
                 {
-                    tokenElems[place] = be;
+                    tokenElems[place] = cast()rng.front;
                 }
                 else
                 {
-                    assert(false, "TODO");
-                    // return null;
+                    return null;
                 }
             }
             else
             {
-                assert(false, "TODO");
-                // return null;
+                return null;
             }
         }
-        return new BindingElement(tokenElems);
+        return new BindingElement(tokenElems.assumeUnique);
     }
-    // 無限容量ネットとする
-    // -> 有限容量 PN を実装する場合は outputs の検査も必要
 
     ///
-    this(Guard g, ArcExpressionFunction aef) pure
+    this(immutable Guard g, immutable ArcExpressionFunction aef) pure
     {
         guard = g;
         arcExpFun = aef;
@@ -296,14 +302,16 @@ abstract class Transition
 
     Guard guard;
     ArcExpressionFunction arcExpFun;
-    // string namespace?
 }
 
 ///
-class ShellCommandTransition: Transition
+alias ShellCommandTransition = immutable ShellCommandTransition_;
+
+///
+immutable class ShellCommandTransition_: Transition
 {
     ///
-    this(string cmd, Guard guard, ArcExpressionFunction aef) pure
+    this(string cmd, immutable Guard guard, immutable ArcExpressionFunction aef) pure
     in(!cmd.empty)
     do
     {
@@ -312,16 +320,24 @@ class ShellCommandTransition: Transition
     }
 
     ///
-    override void fire(BindingElement be, Tid networkTid) const
+    override void fire(in BindingElement be, Tid networkTid)
     {
-        scope(failure) send(networkTid, "Error"); // What to be send?
-
         auto needStdout = arcExpFun.need(SpecialPattern.Stdout);
+        if (needStdout)
+        {
+            send(networkTid, "stdout is not yet supported");
+            return;
+        }
         // TODO: output file name should be random
         auto sout = needStdout ? File("stdout", "w") : stdout;
         scope(exit) if (needStdout) sout.name.remove;
 
         auto needStderr = arcExpFun.need(SpecialPattern.Stderr);
+        if (needStderr)
+        {
+            send(networkTid, "stderr is not yet supported");
+            return;
+        }
         // TODO: output file name should be random
         auto serr = needStderr ? File("stderr", "w") : stderr;
         scope(exit) if (needStderr) serr.name.remove;
@@ -355,13 +371,19 @@ class ShellCommandTransition: Transition
         receive(
             (int code) {
                 auto be = result2BE(code);
-                send(networkTid, be);
+                if (!be.tokenElements.empty)
+                {
+                    send(networkTid, be);
+                }
             },
             (in SignalSent sig) {
                 kill(pid, SIGINT);
                 auto code = receiveOnly!int;
                 auto be = result2BE(code);
-                send(networkTid, be);
+                if (!be.tokenElements.empty)
+                {
+                    send(networkTid, be);
+                }
             },
             (Variant v) {
                 // Unintended message
@@ -371,6 +393,23 @@ class ShellCommandTransition: Transition
             }
         );
         assert(tryWait(pid).terminated);
+    }
+
+    version(Posix)
+    unittest
+    {
+        // Nothing will be sent if it is a sink transition
+        spawnLinked({
+            auto aef = new ArcExpressionFunction((OutputPattern[Place]).init);
+            auto sct = new ShellCommandTransition("true", null, aef);
+            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
+        });
+        receive(
+            (LinkTerminated lt) {
+                // expected
+            },
+            (Variant v) { assert(false); },
+        );
     }
 
     version(Posix)
@@ -388,6 +427,24 @@ class ShellCommandTransition: Transition
                 assert(be == [Place("foo"): new Token("0")]);
             },
             (Variant v) { assert(false); },
+        );
+    }
+
+    version(none)
+    unittest
+    {
+        spawn({
+            auto aef = new ArcExpressionFunction([
+                Place("foo"): OutputPattern(SpecialPattern.Stdout),
+            ]);
+            auto sct = new ShellCommandTransition("echo bar", null, aef);
+            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
+        });
+        receive(
+            (in BindingElement be) {
+                assert(be == [Place("foo"): new Token("bar")], format("[foo:bar] is expected but %s", be));
+            },
+            (Variant v) { assert(false, v.to!string); },
         );
     }
 
@@ -411,7 +468,7 @@ class ShellCommandTransition: Transition
         assert(received);
     }
 private:
-    string commandWith(BindingElement be) const pure
+    string commandWith(in BindingElement be) const pure
     {
         return be.tokenElements.byPair.fold!((acc, p) {
             return acc.replace(format!"#{%s}"(p.key), p.value.to!string);
@@ -426,3 +483,42 @@ private:
     }
     string command;
 }
+
+/+
+void fire(Transition tr, BindingElement be)
+{
+    sigset_t ss;
+    sigemptyset(&ss);
+    // sigint, sighup, sigterm
+    enforce(sigaddset(&ss, SIGINT));
+    enforce(sigprocmask(SIG_BLOCK, &ss, null));
+
+    // tr.isOneShot == true
+    auto tid = spawn((shared Transition t, shared BindingElement b) {
+        (cast()t).fire(cast()b, ownerTid);
+    }, cast(shared)tr, cast(shared)be);
+    auto signalHandler = spawn((sigset_t ss) {
+        int signo;
+
+        enforce(sigwait(&ss, &signo));
+        send(ownerTid, new immutable SignalSent(signo));
+        receiveOnly!int; // SystemExit message
+    }, ss);
+    scope(exit) {
+        // send exit message
+        // it may already exited.
+        send(signalHandler, 0);
+    }
+    receive(
+        (in BindingElement be) {
+            // nop
+        },
+        (immutable SignalSent ss) {
+            send(tid, ss);
+            // SS 時には何も返さないかもしれない
+            //auto ret = receiveOnly!BindingElement;
+        },
+        (Variant v) { assert(false); },
+    );
+}
++/
