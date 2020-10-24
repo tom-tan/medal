@@ -53,7 +53,7 @@ struct Place
         name = n;
     }
 
-    size_t toHash() const pure
+    size_t toHash() const nothrow pure @safe
     {
         return name.hashOf(namespace.hashOf);
     }
