@@ -13,7 +13,9 @@ enum SpecialPattern
 }
 
 ///
-class SignalSent
+alias SignalSent = immutable SignalSent_;
+///
+immutable class SignalSent_
 {
     ///
     this(int no) @nogc nothrow pure
@@ -125,7 +127,7 @@ class InputPattern
 struct OutputPattern
 {
     ///
-    Token match(const CommandResult result) const pure
+    Token match(in CommandResult result) const pure
     {
         switch(pattern) with(SpecialPattern)
         {
@@ -167,7 +169,7 @@ immutable class BindingElement_
         return tokenElements.to!string;
     }
 
-    immutable Token[Place] tokenElements;
+    Token[Place] tokenElements;
 }
 
 alias ArcExpressionFunction = immutable ArcExpressionFunction_;
@@ -177,13 +179,13 @@ immutable class ArcExpressionFunction_
     ///
     this(immutable OutputPattern[Place] pat) pure
     {
-        pattern = pat;
+        patterns = pat;
     }
 
     ///
     immutable(BindingElement) apply(CommandResult result) pure
     {
-        auto tokenElems = pattern.byPair.map!((kv) {
+        auto tokenElems = patterns.byPair.map!((kv) {
             auto place = kv.key;
             auto pat = kv.value;
             return tuple(place, pat.match(result));
@@ -234,16 +236,19 @@ immutable class ArcExpressionFunction_
     ///
     bool need(SpecialPattern pat) pure
     {
-        return pattern.byValue.canFind!(p => p.pattern == pat);
+        return patterns.byValue.canFind!(p => p.pattern == pat);
     }
 
-    OutputPattern[Place] pattern;
+    OutputPattern[Place] patterns;
 }
 
 ///
-class Guard
+alias Guard = immutable Guard_;
+
+///
+immutable class Guard_
 {
-    this(InputPattern[Place] pat)
+    this(immutable InputPattern[Place] pat) pure
     {
         patterns = pat;
     }
@@ -294,7 +299,7 @@ abstract immutable class Transition_
     }
 
     ///
-    this(immutable Guard g, immutable ArcExpressionFunction aef) pure
+    this(in Guard g, in ArcExpressionFunction aef) pure
     {
         guard = g;
         arcExpFun = aef;
@@ -311,7 +316,7 @@ alias ShellCommandTransition = immutable ShellCommandTransition_;
 immutable class ShellCommandTransition_: Transition
 {
     ///
-    this(string cmd, immutable Guard guard, immutable ArcExpressionFunction aef) pure
+    this(string cmd, in Guard guard, in ArcExpressionFunction aef) pure
     in(!cmd.empty)
     do
     {
@@ -458,7 +463,7 @@ immutable class ShellCommandTransition_: Transition
             auto sct = new ShellCommandTransition("sleep 30", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
-        send(tid, new immutable SignalSent(SIGINT));
+        send(tid, new SignalSent(SIGINT));
         auto received = receiveTimeout(5.seconds,
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token((-SIGINT).to!string)]);
@@ -501,7 +506,7 @@ void fire(Transition tr, BindingElement be)
         int signo;
 
         enforce(sigwait(&ss, &signo));
-        send(ownerTid, new immutable SignalSent(signo));
+        send(ownerTid, new SignalSent(signo));
         receiveOnly!int; // SystemExit message
     }, ss);
     scope(exit) {
@@ -513,7 +518,7 @@ void fire(Transition tr, BindingElement be)
         (in BindingElement be) {
             // nop
         },
-        (immutable SignalSent ss) {
+        (in SignalSent ss) {
             send(tid, ss);
             // SS 時には何も返さないかもしれない
             //auto ret = receiveOnly!BindingElement;

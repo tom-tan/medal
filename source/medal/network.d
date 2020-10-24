@@ -4,12 +4,13 @@ import medal.transition;
 
 import std;
 
-version(none):
 ///
-class InvocationTransition: Transition
+alias InvocationTransition = immutable InvocationTransition_;
+///
+immutable class InvocationTransition_: Transition
 {
     ///
-    this(Guard g1, Guard g2, Transition[] trs) pure
+    this(in Guard g1, in Guard g2, in Transition[] trs) pure
     in(!trs.empty)
     do 
     {
@@ -19,7 +20,7 @@ class InvocationTransition: Transition
     }
 
     ///
-    override void fire(in BindingElement initBe, Tid networkTid) const
+    override void fire(in BindingElement initBe, Tid networkTid)
     {
         auto trs = transitions~port;
         auto engine = new Engine(trs);
@@ -30,21 +31,28 @@ class InvocationTransition: Transition
     PortTransition port;
 }
 
-class PortTransition: Transition
+///
+alias PortTransition = immutable PortTransition_;
+///
+immutable class PortTransition_: Transition
 {
-    this(Guard g) pure
+    this(in Guard g) pure
     {
         super(g, null);
     }
 
     override void fire(in BindingElement be, Tid networkTid) const
     {
-        send(networkTid, cast(immutable)new PortSent(be));
+        send(networkTid, new PortSent(be));
     }
 }
 
-class PortSent
+///
+alias PortSent = immutable PortSent_;
+///
+immutable class PortSent_
 {
+    ///
     this(in BindingElement be)
     {
         bindingElement = be;
@@ -59,12 +67,12 @@ unittest
         auto aef = new ArcExpressionFunction([
             Place("bar"): OutputPattern(SpecialPattern.Return),
         ]);
-        auto g = new Guard([
+        auto g = new Guard(cast(immutable)[
             Place("foo"): new InputPattern(SpecialPattern.Any),
         ]);
         auto sct = new ShellCommandTransition("echo #{foo}", g, aef);
         Transition[] trs = [sct];
-        auto portGuard = new Guard([
+        auto portGuard = new Guard(cast(immutable)[
             Place("bar"): new InputPattern(SpecialPattern.Any),
         ]);
         auto net = new InvocationTransition(g, portGuard, trs);
@@ -106,8 +114,8 @@ class Engine
                         if (auto nextBe = cast(immutable)tr.fireable(store))
                         {
                             store.remove(nextBe);
-                            spawn((immutable Transition t, immutable BindingElement be) => t.fire(be, ownerTid),
-                                  cast(immutable)tr, nextBe);
+                            spawn((in Transition t, immutable BindingElement be) => t.fire(be, ownerTid),
+                                  tr, nextBe);
 
                         }
                     }
@@ -116,7 +124,7 @@ class Engine
                     // send sig to all transitions
                     running = false;
                 },
-                (immutable PortSent p) {
+                (in PortSent p) {
                     // send sig? to all transitions
                     send(networkTid, p.bindingElement);
                     running = false;
@@ -128,7 +136,7 @@ class Engine
         }
     }
 
-    const Transition[] transitions;
+    Transition[] transitions;
     Store store;
     Rule rule;
 }
@@ -137,15 +145,6 @@ class Store
 {
     this(in Transition[] trs) pure
     {
-        /+
-        foreach(t; trs)
-        {
-            chain(t.guard.patterns.byKey,
-                  t.arcExpFun.pattern.byKey).filter!(p => p !in state)
-                                            .each!((p) {
-                state[p] = [];
-            });            
-        }+/
     }
 
     ///
@@ -200,5 +199,5 @@ class Rule
         // return tuple(Transition, BindingElement)[]
     }+/
 
-    const Transition[] transitions;
+    Transition[] transitions;
 }
