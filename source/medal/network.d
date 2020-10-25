@@ -116,7 +116,6 @@ class Engine
                             store.remove(nextBe);
                             spawn((in Transition t, immutable BindingElement be) => t.fire(be, ownerTid),
                                   tr, nextBe);
-
                         }
                     }
                 },

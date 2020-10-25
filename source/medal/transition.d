@@ -267,7 +267,7 @@ immutable class Guard_
 ///
 alias Transition = immutable Transition_;
 ///
-abstract immutable class Transition_
+immutable abstract class Transition_
 {
     ///
     abstract void fire(in BindingElement be, Tid networkTid);
