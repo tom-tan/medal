@@ -1,12 +1,11 @@
 import std;
 import dyaml;
-import engine = medal.engine;
-static import medal.parser;
 
 import std.experimental.logger;
 
-int main(string[] args) // @safe
+void main(string[] args)
 {
+    /+
     globalLogLevel = LogLevel.off;
     auto helpInfo = args.getopt(
         "quiet", () => globalLogLevel = LogLevel.off,
@@ -33,4 +32,5 @@ EOS".outdent[0..$-1], args[0]);
     Node root = Loader.fromFile(yaml).load;
     auto params = medal.parser.parse(root);
     return engine.run(params.store, params.rules, params.initEvent);
+    +/
 }

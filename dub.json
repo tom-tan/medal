@@ -9,7 +9,6 @@
 	"targetType": "executable",
 	"targetPath": "bin",
 	"dependencies": {
-		"sumtype": "~>0.9.4",
 		"dyaml": "~>0.8.2"
 	}
 }
