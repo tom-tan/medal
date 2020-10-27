@@ -13,9 +13,7 @@ enum SpecialPattern
 }
 
 ///
-alias SignalSent = immutable SignalSent_;
-///
-immutable class SignalSent_
+struct SignalSent
 {
     ///
     this(int no) @nogc nothrow pure
@@ -174,7 +172,7 @@ immutable class BindingElement_
 alias ArcExpressionFunction = immutable OutputPattern[Place];
 
 ///
-immutable(BindingElement) apply(ArcExpressionFunction aef, CommandResult result) pure
+BindingElement apply(ArcExpressionFunction aef, CommandResult result) pure
 {
     auto tokenElems = aef.byPair.map!((kv) {
         auto place = kv.key;
@@ -426,7 +424,7 @@ immutable class ShellCommandTransition_: Transition
             auto sct = new ShellCommandTransition("sleep 30", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
-        send(tid, new SignalSent(SIGINT));
+        send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(5.seconds,
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token((-SIGINT).to!string)]);
