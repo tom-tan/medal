@@ -1,6 +1,5 @@
 module medal.transition;
 
-import core.sys.posix.signal;
 import std;
 
 ///
@@ -343,6 +342,8 @@ immutable class ShellCommandTransition_: Transition
                 }
             },
             (in SignalSent sig) {
+                import core.sys.posix.signal: SIGINT;
+
                 kill(pid, SIGINT);
                 auto code = receiveOnly!int;
                 auto be = result2BE(code);
@@ -352,6 +353,8 @@ immutable class ShellCommandTransition_: Transition
                 }
             },
             (Variant v) {
+                import core.sys.posix.signal: SIGINT;
+
                 // Unintended message
                 kill(pid, SIGINT);
                 receiveOnly!int;
@@ -417,6 +420,8 @@ immutable class ShellCommandTransition_: Transition
     version(Posix)
     unittest
     {
+        import core.sys.posix.signal: SIGINT;
+
         auto tid = spawn({
             immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Return),
