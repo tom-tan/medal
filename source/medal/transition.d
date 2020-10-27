@@ -430,7 +430,7 @@ immutable class ShellCommandTransition_: Transition
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
         send(tid, SignalSent(SIGINT));
-        auto received = receiveTimeout(5.seconds,
+        auto received = receiveTimeout(10.seconds,
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token((-SIGINT).to!string)]);
             },
