@@ -104,10 +104,8 @@ class Token
 }
 
 ///
-class InputPattern
+struct InputPattern
 {
-    this(string pat) { pattern = pat; }
-
     ///
     const(Token) match(in Token token) const pure
     {
@@ -243,26 +241,7 @@ immutable class ArcExpressionFunction_
 }
 
 ///
-alias Guard = immutable Guard_;
-
-///
-immutable class Guard_
-{
-    this(immutable InputPattern[Place] pat) pure
-    {
-        patterns = pat;
-    }
-    /+
-    BindingElement match(State s) const
-    {
-    }
-    +/
-
-    InputPattern[Place] patterns;
-}
-
-/// 発火継続モデルをベースとする
-/// ペトリネットの理論と実践 p.35
+alias Guard = immutable InputPattern[Place];
 
 ///
 alias Transition = immutable Transition_;
@@ -276,7 +255,7 @@ immutable abstract class Transition_
     BindingElement fireable(Store)(in Store s) pure
     {
         Token[Place] tokenElems;
-        foreach(place, ipattern; guard.patterns.byPair)
+        foreach(place, ipattern; guard.byPair)
         {
             if (auto tokens = place in s.state)
             {

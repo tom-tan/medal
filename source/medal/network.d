@@ -67,14 +67,14 @@ unittest
         auto aef = new ArcExpressionFunction([
             Place("bar"): OutputPattern(SpecialPattern.Return),
         ]);
-        auto g = new Guard(cast(immutable)[
-            Place("foo"): new InputPattern(SpecialPattern.Any),
-        ]);
+        immutable g = [
+            Place("foo"): InputPattern(SpecialPattern.Any),
+        ];
         auto sct = new ShellCommandTransition("echo #{foo}", g, aef);
         Transition[] trs = [sct];
-        auto portGuard = new Guard(cast(immutable)[
-            Place("bar"): new InputPattern(SpecialPattern.Any),
-        ]);
+        immutable portGuard = [
+            Place("bar"): InputPattern(SpecialPattern.Any),
+        ];
         auto net = new InvocationTransition(g, portGuard, trs);
         net.fire(new BindingElement([Place("foo"): new Token("yahoo")]), ownerTid);
     });
