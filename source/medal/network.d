@@ -17,7 +17,7 @@ immutable class InvocationTransition_: Transition
     {
         super(g1, null);
         transitions = trs;
-        port = new EngineTerminateTransition(g2);
+        port = new EngineStopTransition(g2);
     }
 
     ///
@@ -30,7 +30,7 @@ immutable class InvocationTransition_: Transition
     }
 
     Transition[] transitions;
-    EngineTerminateTransition port;
+    EngineStopTransition port;
 }
 
 unittest
