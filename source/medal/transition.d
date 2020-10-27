@@ -330,7 +330,7 @@ immutable class ShellCommandTransition_: Transition
             {
                 result.stderr = serr.name;
             }
-            return cast(immutable)(arcExpFun.apply(result));
+            return arcExpFun.apply(result);
         }
 
         receive(
