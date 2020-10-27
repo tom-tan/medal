@@ -170,74 +170,58 @@ immutable class BindingElement_
     Token[Place] tokenElements;
 }
 
-alias ArcExpressionFunction = immutable ArcExpressionFunction_;
 ///
-immutable class ArcExpressionFunction_
+alias ArcExpressionFunction = immutable OutputPattern[Place];
+
+///
+immutable(BindingElement) apply(ArcExpressionFunction aef, CommandResult result) pure
 {
-    ///
-    this(immutable OutputPattern[Place] pat) pure
-    {
-        patterns = pat;
-    }
+    auto tokenElems = aef.byPair.map!((kv) {
+        auto place = kv.key;
+        auto pat = kv.value;
+        return tuple(place, pat.match(result));
+    }).assocArray;
+    return new BindingElement(tokenElems.assumeUnique);
+}
 
-    ///
-    immutable(BindingElement) apply(CommandResult result) pure
-    {
-        auto tokenElems = patterns.byPair.map!((kv) {
-            auto place = kv.key;
-            auto pat = kv.value;
-            return tuple(place, pat.match(result));
-        }).assocArray;
-        return new BindingElement(tokenElems.assumeUnique);
-    }
+unittest
+{
+    ArcExpressionFunction aef;
+    auto be = aef.apply(CommandResult.init);
+    assert(be.tokenElements.empty);
+}
 
-    unittest
-    {
-        auto aef = new ArcExpressionFunction((immutable OutputPattern[Place]).init);
-        auto be = aef.apply(CommandResult.init);
-        assert(be.tokenElements.empty);
-    }
+unittest
+{
+    immutable aef = [
+        Place("foo"): OutputPattern("constant-value"),
+    ];
+    auto be = aef.apply(CommandResult.init);
+    assert(be == [Place("foo"): new Token("constant-value")]);
+}
 
-    unittest
-    {
-        auto aef = new ArcExpressionFunction([
-            Place("foo"): OutputPattern("constant-value"),
-        ]);
-        auto be = aef.apply(CommandResult.init);
-        assert(be == [Place("foo"): new Token("constant-value")]);
-    }
+unittest
+{
+    immutable aef = [
+        Place("foo"): OutputPattern(SpecialPattern.Stdout),
+    ];
+    CommandResult result = { stdout: "standard output" };
+    auto be = aef.apply(result);
+    assert(be == [Place("foo"): new Token("standard output")]);        
+}
 
-    unittest
-    {
-        auto aef = new ArcExpressionFunction([
-            Place("foo"): OutputPattern(SpecialPattern.Stdout),
-        ]);
-        CommandResult result = { stdout: "standard output" };
-        auto be = aef.apply(result);
-        assert(be == [Place("foo"): new Token("standard output")]);        
-    }
-
-    unittest
-    {
-        auto aef = new ArcExpressionFunction([
-            Place("foo"): OutputPattern(SpecialPattern.Return),
-            Place("bar"): OutputPattern("other-constant-value"),
-        ]);
-        CommandResult result = { stdout: "standard output", code: 0 };
-        auto be = aef.apply(result);
-        assert(be == [
-            Place("foo"): new Token("0"),
-            Place("bar"): new Token("other-constant-value"),
-        ]);
-    }
-
-    ///
-    bool need(SpecialPattern pat) pure
-    {
-        return patterns.byValue.canFind!(p => p.pattern == pat);
-    }
-
-    OutputPattern[Place] patterns;
+unittest
+{
+    immutable aef = [
+        Place("foo"): OutputPattern(SpecialPattern.Return),
+        Place("bar"): OutputPattern("other-constant-value"),
+    ];
+    CommandResult result = { stdout: "standard output", code: 0 };
+    auto be = aef.apply(result);
+    assert(be == [
+        Place("foo"): new Token("0"),
+        Place("bar"): new Token("other-constant-value"),
+    ]);
 }
 
 ///
@@ -306,7 +290,7 @@ immutable class ShellCommandTransition_: Transition
     ///
     override void fire(in BindingElement be, Tid networkTid)
     {
-        auto needStdout = arcExpFun.need(SpecialPattern.Stdout);
+        auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
         if (needStdout)
         {
             send(networkTid, "stdout is not yet supported");
@@ -316,7 +300,7 @@ immutable class ShellCommandTransition_: Transition
         auto sout = needStdout ? File("stdout", "w") : stdout;
         scope(exit) if (needStdout) sout.name.remove;
 
-        auto needStderr = arcExpFun.need(SpecialPattern.Stderr);
+        auto needStderr = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stderr);
         if (needStderr)
         {
             send(networkTid, "stderr is not yet supported");
@@ -384,7 +368,7 @@ immutable class ShellCommandTransition_: Transition
     {
         // Nothing will be sent if it is a sink transition
         spawnLinked({
-            auto aef = new ArcExpressionFunction((OutputPattern[Place]).init);
+            ArcExpressionFunction aef;
             auto sct = new ShellCommandTransition("true", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
@@ -400,9 +384,9 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         spawn({
-            auto aef = new ArcExpressionFunction([
+            immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Return),
-            ]);
+            ];
             auto sct = new ShellCommandTransition("true", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
@@ -418,9 +402,9 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         spawn({
-            auto aef = new ArcExpressionFunction([
+            immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Stdout),
-            ]);
+            ];
             auto sct = new ShellCommandTransition("echo bar", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
@@ -436,9 +420,9 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         auto tid = spawn({
-            auto aef = new ArcExpressionFunction([
+            immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Return),
-            ]);
+            ];
             auto sct = new ShellCommandTransition("sleep 30", null, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });

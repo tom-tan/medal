@@ -64,9 +64,9 @@ immutable class PortSent_
 unittest
 {
     spawn({
-        auto aef = new ArcExpressionFunction([
+        immutable aef = [
             Place("bar"): OutputPattern(SpecialPattern.Return),
-        ]);
+        ];
         immutable g = [
             Place("foo"): InputPattern(SpecialPattern.Any),
         ];
