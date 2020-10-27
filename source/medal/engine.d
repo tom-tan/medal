@@ -18,7 +18,7 @@ immutable class EngineStopTransition_: Transition
     ///
     this(in Guard g) pure
     {
-        super(g, null);
+        super(g, ArcExpressionFunction.init);
     }
 
     override void fire(in BindingElement be, Tid networkTid) const
@@ -31,13 +31,27 @@ immutable class EngineStopTransition_: Transition
 struct Engine
 {
     ///
-    this(in Transition[] trs)
+    this(in Transition tr)
+    {
+        auto g = tr.arcExpFun
+                   .byKey
+                   .map!(p => tuple(p, InputPattern(SpecialPattern.Any)))
+                   .assocArray;
+        this([tr], g.assumeUnique);
+    }
+
+    ///
+    this(in Transition[] trs, in Guard stopGuard = Guard.init)
     in(!trs.empty)
     do
     {
         transitions = trs;
-        store = Store(trs);
-        rule = Rule(trs);
+        if (!stopGuard.empty)
+        {
+            transitions ~= new EngineStopTransition(stopGuard);
+        }
+        store = Store(transitions);
+        rule = Rule(transitions);
     }
 
     ///

@@ -15,22 +15,21 @@ immutable class InvocationTransition_: Transition
     in(!trs.empty)
     do 
     {
-        super(g1, null);
+        super(g1, ArcExpressionFunction.init);
         transitions = trs;
-        port = new EngineStopTransition(g2);
+        stopGuard = g2;
     }
 
     ///
     override void fire(in BindingElement initBe, Tid networkTid)
     {
-        auto trs = transitions~port;
-        auto engine = Engine(trs);
+        auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe);
         send(networkTid, retBe);
     }
 
     Transition[] transitions;
-    EngineStopTransition port;
+    Guard stopGuard;
 }
 
 unittest
