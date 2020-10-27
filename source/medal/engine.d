@@ -4,14 +4,14 @@ import medal.transition;
 
 import std;
 
-
+///
 struct EngineWillStop
 {
     BindingElement bindingElement;
 }
 
 ///
-class Engine
+struct Engine
 {
     ///
     this(in Transition[] trs)
@@ -19,8 +19,8 @@ class Engine
     do
     {
         transitions = trs;
-        store = new Store(trs);
-        rule = new Rule(trs);
+        store = Store(trs);
+        rule = Rule(trs);
     }
 
     ///
@@ -64,21 +64,30 @@ class Engine
     Rule rule;
 }
 
-class Store
+///
+struct Store
 {
+    ///
     this(in Transition[] trs) pure
+    in(!trs.empty)
+    do
     {
+        foreach(t; trs)
+        {
+            chain(t.guard.byKey,
+                  t.arcExpFun.byKey).filter!(p => p !in state)
+                                    .each!(p => state[p] = []);
+        }
     }
 
     ///
     void put(in BindingElement be) pure
-    //in(be.tokenElements.byPair.all!(pt => pt[0] in state))
+    in(be.tokenElements.byPair.all!(pt => pt[0] in state))
     do
     {
         foreach(p, t; be.tokenElements)
         {
-            auto tokens = state.get(p, []);
-            state[p] = tokens ~ t;
+            state[p] = state[p] ~ t;
         }
     }
 
@@ -90,22 +99,22 @@ class Store
     {
         foreach(p, t; be.tokenElements)
         {
-            auto tokens = p in state;
-            auto split = (*tokens)[].findSplit([t]);
+            auto split = state[p].findSplit([t]);
             state[p] = split[0] ~ split[2];
         }
     }
 
     // `dispatch(BindingElement) const pure` needs much duplication cost...
 
-    override string toString() const pure
+    string toString() const pure
     {
         return state.to!string;
     }
     const(Token)[][Place] state;
 }
 
-class Rule
+///
+struct Rule
 {
     this(in Transition[] trs) pure
     {

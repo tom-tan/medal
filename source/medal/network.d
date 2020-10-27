@@ -24,7 +24,7 @@ immutable class InvocationTransition_: Transition
     override void fire(in BindingElement initBe, Tid networkTid)
     {
         auto trs = transitions~port;
-        auto engine = new Engine(trs);
+        auto engine = Engine(trs);
         engine.run(initBe, networkTid);
     }
 
