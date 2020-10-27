@@ -143,7 +143,7 @@ struct OutputPattern
 // std.concurrency cannot send/receive immutable AA
 // https://issues.dlang.org/show_bug.cgi?id=13930 (solved by Issue 21296)
 // +1
-//alias BindingElement = Token[Place];
+//alias BindingElement = immutable Token[Place];
 alias BindingElement = immutable BindingElement_;
 ///
 immutable class BindingElement_
