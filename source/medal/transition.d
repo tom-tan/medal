@@ -367,14 +367,14 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         // Nothing will be sent if it is a sink transition
-        spawnLinked({
-            ArcExpressionFunction aef;
-            auto sct = new ShellCommandTransition("true", null, aef);
+        auto tid = spawnLinked({
+            auto sct = new ShellCommandTransition("true", Guard.init,
+                                                  ArcExpressionFunction.init);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
         receive(
             (LinkTerminated lt) {
-                // expected
+                assert(lt.tid == tid);
             },
             (Variant v) { assert(false); },
         );
@@ -387,7 +387,7 @@ immutable class ShellCommandTransition_: Transition
             immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Return),
             ];
-            auto sct = new ShellCommandTransition("true", null, aef);
+            auto sct = new ShellCommandTransition("true", Guard.init, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
         receive(
@@ -405,7 +405,7 @@ immutable class ShellCommandTransition_: Transition
             immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Stdout),
             ];
-            auto sct = new ShellCommandTransition("echo bar", null, aef);
+            auto sct = new ShellCommandTransition("echo bar", Guard.init, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
         receive(
@@ -425,7 +425,7 @@ immutable class ShellCommandTransition_: Transition
             immutable aef = [
                 Place("foo"): OutputPattern(SpecialPattern.Return),
             ];
-            auto sct = new ShellCommandTransition("sleep 30", null, aef);
+            auto sct = new ShellCommandTransition("sleep 30", Guard.init, aef);
             sct.fire(new BindingElement((Token[Place]).init), ownerTid);
         });
         send(tid, SignalSent(SIGINT));
@@ -447,7 +447,8 @@ private:
 
     unittest
     {
-        auto t = new ShellCommandTransition("echo #{foo}", null, null);
+        auto t = new ShellCommandTransition("echo #{foo}", Guard.init,
+                                            ArcExpressionFunction.init);
         auto be = new BindingElement([Place("foo"): new Token("3")]);
         assert(t.commandWith(be) == "echo 3", t.commandWith(be));
     }

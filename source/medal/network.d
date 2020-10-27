@@ -41,7 +41,7 @@ unittest
         immutable g = [
             Place("foo"): InputPattern(SpecialPattern.Any),
         ];
-        auto sct = new ShellCommandTransition("echo #{foo}", g, aef);
+        auto sct = new ShellCommandTransition("true #{foo}", g, aef);
         Transition[] trs = [sct];
         immutable portGuard = [
             Place("bar"): InputPattern(SpecialPattern.Any),
