@@ -43,22 +43,13 @@ immutable class PortTransition_: Transition
 
     override void fire(in BindingElement be, Tid networkTid) const
     {
-        send(networkTid, new PortSent(be));
+        send(networkTid, PortSent(be));
     }
 }
 
-///
-alias PortSent = immutable PortSent_;
-///
-immutable class PortSent_
+struct PortSent
 {
-    ///
-    this(in BindingElement be)
-    {
-        bindingElement = be;
-    }
-
-    const BindingElement bindingElement;
+    BindingElement bindingElement;
 }
 
 unittest
