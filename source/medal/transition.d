@@ -148,6 +148,9 @@ alias BindingElement = immutable BindingElement_;
 immutable class BindingElement_
 {
     ///
+    this() pure { tokenElements = (Token[Place]).init; }
+
+    ///
     this(immutable Token[Place] tokenElems) pure
     {
         tokenElements = tokenElems;
@@ -370,7 +373,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnLinked({
             auto sct = new ShellCommandTransition("true", Guard.init,
                                                   ArcExpressionFunction.init);
-            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
+            sct.fire(new BindingElement, ownerTid);
         });
         receive(
             (LinkTerminated lt) {
@@ -383,13 +386,11 @@ immutable class ShellCommandTransition_: Transition
     version(Posix)
     unittest
     {
-        spawn({
-            immutable aef = [
-                Place("foo"): OutputPattern(SpecialPattern.Return),
-            ];
-            auto sct = new ShellCommandTransition("true", Guard.init, aef);
-            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
-        });
+        immutable aef = [
+            Place("foo"): OutputPattern(SpecialPattern.Return),
+        ];
+        auto sct = new ShellCommandTransition("true", Guard.init, aef);
+        spawnFire(sct, new BindingElement, thisTid);
         receive(
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token("0")]);
@@ -401,13 +402,11 @@ immutable class ShellCommandTransition_: Transition
     version(none)
     unittest
     {
-        spawn({
-            immutable aef = [
-                Place("foo"): OutputPattern(SpecialPattern.Stdout),
-            ];
-            auto sct = new ShellCommandTransition("echo bar", Guard.init, aef);
-            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
-        });
+        immutable aef = [
+            Place("foo"): OutputPattern(SpecialPattern.Stdout),
+        ];
+        auto sct = new ShellCommandTransition("echo bar", Guard.init, aef);
+        spawnFire(sct, new BindingElement, thisTid);
         receive(
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token("bar")], format("[foo:bar] is expected but %s", be));
@@ -421,13 +420,11 @@ immutable class ShellCommandTransition_: Transition
     {
         import core.sys.posix.signal: SIGINT;
 
-        auto tid = spawn({
-            immutable aef = [
-                Place("foo"): OutputPattern(SpecialPattern.Return),
-            ];
-            auto sct = new ShellCommandTransition("sleep 30", Guard.init, aef);
-            sct.fire(new BindingElement((Token[Place]).init), ownerTid);
-        });
+        immutable aef = [
+            Place("foo"): OutputPattern(SpecialPattern.Return),
+        ];
+        auto sct = new ShellCommandTransition("sleep 30", Guard.init, aef);
+        auto tid = spawnFire(sct, new BindingElement, thisTid);
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(10.seconds,
             (in BindingElement be) {
@@ -455,6 +452,20 @@ private:
     string command;
 }
 
+///
+Tid spawnFire(in Transition tr, in BindingElement be, Tid tid)
+{
+    return spawn((in Transition tr, in BindingElement be, Tid tid) {
+        try
+        {
+            tr.fire(be, tid);
+        }
+        catch(Exception e)
+        {
+            send(tid, cast(shared)e);
+        }
+    }, tr, be, tid);
+}
 /+
 void fire(Transition tr, BindingElement be)
 {

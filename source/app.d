@@ -1,36 +1,70 @@
 import std;
 import dyaml;
 
-import std.experimental.logger;
+import medal.loader;
+import medal.transition;
 
-void main(string[] args)
+int main(string[] args)
 {
-    /+
-    globalLogLevel = LogLevel.off;
+    string initFile;
     auto helpInfo = args.getopt(
-        "quiet", () => globalLogLevel = LogLevel.off,
-        "verbose|v", () => globalLogLevel = LogLevel.info,
-        "veryverbose", () => globalLogLevel = LogLevel.all,
+        "init|i", "Specify initial marking file", &initFile,
     );
     if (helpInfo.helpWanted || args.length != 2)
     {
         immutable baseMessage = format(q"EOS
-        Medal: a Flux-based state transition engine
-        Usage: %s [options] <yaml>
+        Medal: Petri net executor
+        Usage: %s [options] <network.yaml>
 EOS".outdent[0..$-1], args[0]);
-        // 以下は @safe であるべき！
         defaultGetoptPrinter(baseMessage, helpInfo.options);
         return 0;
     }
 
-    immutable yaml = args[1];
-    if (!yaml.exists)
+    auto netFile = args[1];
+    if (!netFile.exists)
     {
-        writeln("Input file is not found: ", yaml);
+        stderr.writeln("Network file is not found: "~netFile);
         return 1;
     }
-    Node root = Loader.fromFile(yaml).load;
-    auto params = medal.parser.parse(root);
-    return engine.run(params.store, params.rules, params.initEvent);
-    +/
+    Node netRoot = Loader.fromFile(netFile).load;
+    auto tr = loadTransition(netRoot);
+
+    Rebindable!BindingElement initBe;
+    if (initFile.exists)
+    {
+        Node initRoot = Loader.fromFile(initFile).load;
+        initBe = loadBindingElement(initRoot);
+    }
+    else if (initFile.empty)
+    {
+        initBe = new BindingElement;
+    }
+    else
+    {
+        stderr.writeln("Initial marking file is not found: "~initFile);
+        return 1;
+    }
+
+    auto mainTid = spawnFire(tr, initBe, thisTid);
+
+    bool success;
+    receive(
+        (in BindingElement be) {
+            writeln("Received: ", be);
+            success = true;
+        },
+        (in SignalSent ss) {
+            writefln("Signal %s is caught", ss.no);
+            success = false;
+        },
+        (shared Exception e) {
+            writefln("Exception in %s(%s): %s", e.file, e.line, e.msg);
+            success = false;
+        },
+        (Variant v) {
+            writeln("Error: ", v);
+            success = false;
+        },
+    );
+    return success ? 0 : 1;
 }
