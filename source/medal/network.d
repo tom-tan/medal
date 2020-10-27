@@ -17,7 +17,7 @@ immutable class InvocationTransition_: Transition
     {
         super(g1, null);
         transitions = trs;
-        port = new PortTransition(g2);
+        port = new EngineTerminateTransition(g2);
     }
 
     ///
@@ -25,27 +25,12 @@ immutable class InvocationTransition_: Transition
     {
         auto trs = transitions~port;
         auto engine = Engine(trs);
-        engine.run(initBe, networkTid);
+        auto retBe = engine.run(initBe);
+        send(networkTid, retBe);
     }
 
     Transition[] transitions;
-    PortTransition port;
-}
-
-///
-alias PortTransition = immutable PortTransition_;
-///
-immutable class PortTransition_: Transition
-{
-    this(in Guard g) pure
-    {
-        super(g, null);
-    }
-
-    override void fire(in BindingElement be, Tid networkTid) const
-    {
-        send(networkTid, EngineWillStop(be));
-    }
+    EngineTerminateTransition port;
 }
 
 unittest

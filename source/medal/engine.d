@@ -11,6 +11,23 @@ struct EngineWillStop
 }
 
 ///
+alias EngineStopTransition = immutable EngineStopTransition_;
+///
+immutable class EngineStopTransition_: Transition
+{
+    ///
+    this(in Guard g) pure
+    {
+        super(g, null);
+    }
+
+    override void fire(in BindingElement be, Tid networkTid) const
+    {
+        send(networkTid, EngineWillStop(be));
+    }
+}
+
+///
 struct Engine
 {
     ///
@@ -24,9 +41,10 @@ struct Engine
     }
 
     ///
-    void run(in BindingElement initBe, Tid networkTid)
+    BindingElement run(in BindingElement initBe)
     {
         auto running = true;
+        Rebindable!(typeof(return)) ret;
         send(thisTid, initBe);
         while(running)
         {
@@ -49,7 +67,7 @@ struct Engine
                 },
                 (in EngineWillStop ews) {
                     // send sig? to all transitions
-                    send(networkTid, ews.bindingElement);
+                    ret = ews.bindingElement;
                     running = false;
                 },
                 (Variant v) {
@@ -57,6 +75,7 @@ struct Engine
                 },
             );
         }
+        return ret;
     }
 
     Transition[] transitions;
