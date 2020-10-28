@@ -7,7 +7,7 @@ This is a workflow engine based on Petri nets.
 
 See `medal --help` for more details.
 ```console
-$ medal -h
+$ medal --help
 Medal: A workflow engine based on Petri nets
 Usage: medal [options] <network.yml>
 -i --init Specify initial marking file
