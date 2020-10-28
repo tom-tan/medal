@@ -8,12 +8,13 @@ int main(string[] args)
 {
     string initFile;
     auto helpInfo = args.getopt(
+        std.getopt.config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
     );
     if (helpInfo.helpWanted || args.length != 2)
     {
         immutable baseMessage = format(q"EOS
-        Medal: Petri net executor
+        Medal: A workflow engine based on Petri nets
         Usage: %s [options] <network.yml>
 EOS".outdent[0..$-1], args[0]);
         defaultGetoptPrinter(baseMessage, helpInfo.options);
