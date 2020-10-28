@@ -1,0 +1,9 @@
+name: echo
+type: shell
+in:
+  - place: message
+    pattern: ANY
+out:
+  - place: return
+    pattern: RETURN
+command: "echo #{message}"
