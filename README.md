@@ -15,12 +15,13 @@ Usage: medal [options] <network.yml>
 ```
 
 See:
+- [`examples/network.yml`](https://github.com/tom-tan/medal/blob/master/examples/network.yml) for input network.
+- [`examples/network-input.yml`](https://github.com/tom-tan/medal/blob/master/examples/network-input.yml) for initial marking.
+
 - [`examples/transition.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition.yml) for input transitions.
 - [`examples/transition-input.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition-input.yml) for initial marking.
 
 Note: syntax is not fixed yet.
-
-
 
 ## Build requirements
 - D compiler

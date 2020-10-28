@@ -1,0 +1,33 @@
+name: ping-pong
+type: network
+out:
+  - place: foo
+    pattern: exit
+transitions:
+  - name: ping
+    type: shell
+    in:
+      - place: foo
+        pattern: 0
+    out:
+      - place: bar
+        pattern: 1
+    command: echo ping.
+  - name: pong
+    type: shell
+    in:
+      - place: bar
+        pattern: 1
+    out:
+      - place: buzz
+        pattern: 2
+    command: echo pong.
+  - name: smash
+    type: shell
+    in:
+      - place: buzz
+        pattern: 2
+    out:
+      - place: foo
+        pattern: exit
+    command: echo 'smash!'
