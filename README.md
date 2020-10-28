@@ -38,7 +38,7 @@ $ dub build -b release
 
 You will see `medal` in `bin` directory.
 
-## How to dive into source codes
+### How to dive into source codes
 ```console
 $ dub run gendoc
 ```
