@@ -436,10 +436,10 @@ immutable class ShellCommandTransition_: Transition
         immutable aef = [
             Place("foo"): OutputPattern(SpecialPattern.Return),
         ];
-        auto sct = new ShellCommandTransition("sleep 30", Guard.init, aef);
+        auto sct = new ShellCommandTransition("sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         send(tid, SignalSent(SIGINT));
-        auto received = receiveTimeout(10.seconds,
+        auto received = receiveTimeout(30.seconds,
             (in BindingElement be) {
                 assert(be == [Place("foo"): new Token((-SIGINT).to!string)]);
             },
