@@ -23,11 +23,12 @@ See:
 
 Note: syntax is not fixed yet.
 
-## Build requirements
+## For developers
+### Build requirements
 - D compiler
 - dub
 
-## How to build
+### How to build
 
 ```console
 $ git clone https://github.com/tom-tan/medal.git
@@ -36,3 +37,10 @@ $ dub build -b release
 ```
 
 You will see `medal` in `bin` directory.
+
+## How to dive into source codes
+```console
+$ dub run gendoc
+```
+
+You will see API documents (HTML) in `docs` directory.
