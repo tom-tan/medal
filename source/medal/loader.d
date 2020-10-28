@@ -1,3 +1,8 @@
+/**
+ * Authors: Tomoya Tanjo
+ * Copyright: © 2020 Tomoya Tanjo
+ * License: Apache-2.0
+ */
 module medal.loader;
 
 import medal.transition;
@@ -20,6 +25,30 @@ Transition loadTransition(Node node)
     default:
         assert(false, "Unknown type: "~type);
     }
+}
+
+///
+unittest
+{
+    enum inpStr = q"EOS
+    name: echo
+    type: shell
+    out:
+      - place: ret
+        pattern: RETURN
+    command: true
+EOS";
+    auto trRoot = Loader.fromString(inpStr).load;
+    auto tr = loadTransition(trRoot);
+    assert(cast(ShellCommandTransition)tr);
+    spawnFire(tr, new BindingElement, thisTid);
+    auto received = receiveTimeout(10.seconds,
+        (in BindingElement be) {
+            assert(be == [Place("ret"): new Token("0")]);
+        },
+        (Variant _) { assert(false); },
+    );
+    assert(received);
 }
 
 ///
@@ -60,29 +89,7 @@ do
     return new InvocationTransition(g1, g2, trs);
 }
 
-unittest
-{
-    enum inpStr = q"EOS
-    name: echo
-    type: shell
-    out:
-      - place: ret
-        pattern: RETURN
-    command: true
-EOS";
-    auto trRoot = Loader.fromString(inpStr).load;
-    auto tr = loadTransition(trRoot);
-    assert(cast(ShellCommandTransition)tr);
-    spawnFire(tr, new BindingElement, thisTid);
-    auto received = receiveTimeout(10.seconds,
-        (in BindingElement be) {
-            assert(be == [Place("ret"): new Token("0")]);
-        },
-        (Variant _) { assert(false); },
-    );
-    assert(received);
-}
-
+///
 Guard loadGuard(Node node)
 {
     auto pats = new Generator!(Tuple!(Place, InputPattern))({
@@ -96,6 +103,19 @@ Guard loadGuard(Node node)
     return pats.assumeUnique;
 }
 
+///
+unittest
+{
+    enum inpStr = q"EOS
+    - place: pl
+      pattern: constant-value
+EOS";
+    auto root = Loader.fromString(inpStr).load;
+    auto g = loadGuard(root);
+    assert(g == cast(immutable)[Place("pl"): InputPattern("constant-value")]);
+}
+
+///
 ArcExpressionFunction loadArcExpressionFunction(Node node)
 {
     auto pats = new Generator!(Tuple!(Place, OutputPattern))({
@@ -109,17 +129,7 @@ ArcExpressionFunction loadArcExpressionFunction(Node node)
     return pats.assumeUnique;
 }
 
-unittest
-{
-    enum inpStr = q"EOS
-    - place: pl
-      pattern: constant-value
-EOS";
-    auto root = Loader.fromString(inpStr).load;
-    auto g = loadGuard(root);
-    assert(g == cast(immutable)[Place("pl"): InputPattern("constant-value")]);
-}
-
+///
 BindingElement loadBindingElement(Node node)
 {
     auto tokenElems = new Generator!(Tuple!(Place, Token))({

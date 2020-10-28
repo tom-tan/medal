@@ -1,3 +1,8 @@
+/**
+ * Authors: Tomoya Tanjo
+ * Copyright: © 2020 Tomoya Tanjo
+ * License: Apache-2.0
+ */
 import std;
 import dyaml;
 

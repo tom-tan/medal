@@ -2,8 +2,8 @@
 	"authors": [
 		"Tomoya Tanjo"
 	],
-	"copyright": "Copyright © 2020, Tomoya Tanjo",
-	"description": "A Flux-based state transition engine",
+	"copyright": "© 2020 Tomoya Tanjo",
+	"description": "A workflow engine based on Petri nets",
 	"license": "Apache-2.0",
 	"name": "medal",
 	"targetType": "executable",

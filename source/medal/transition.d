@@ -1,3 +1,8 @@
+/**
+ * Authors: Tomoya Tanjo
+ * Copyright: © 2020 Tomoya Tanjo
+ * License: Apache-2.0
+ */
 module medal.transition;
 
 import std;
@@ -60,6 +65,7 @@ struct Place
         return namespace == other.namespace && name == other.name;
     }
 
+    ///
     string toString() const pure
     {
         return namespace.empty ? name : namespace~"::"~name;
@@ -91,6 +97,7 @@ class Token
         }
     }
 
+    ///
     override string toString() const pure
     {
         return value;
@@ -156,11 +163,13 @@ immutable class BindingElement_
         tokenElements = tokenElems;
     }
 
+    ///
     bool opEquals(in Token[Place] otherTokenElements) const
     {
         return cast(const(Token[Place]))tokenElements == otherTokenElements;
     }
 
+    ///
     string toString() pure
     {
         return tokenElements.to!string;
@@ -183,6 +192,7 @@ BindingElement apply(ArcExpressionFunction aef, CommandResult result) pure
     return new BindingElement(tokenElems.assumeUnique);
 }
 
+///
 unittest
 {
     ArcExpressionFunction aef;
@@ -190,6 +200,7 @@ unittest
     assert(be.tokenElements.empty);
 }
 
+///
 unittest
 {
     immutable aef = [
@@ -209,6 +220,7 @@ unittest
     assert(be == [Place("foo"): new Token("standard output")]);        
 }
 
+///
 unittest
 {
     immutable aef = [
@@ -383,6 +395,7 @@ immutable class ShellCommandTransition_: Transition
         );
     }
 
+    ///
     version(Posix)
     unittest
     {
