@@ -15,10 +15,10 @@ Usage: medal [options] <network.yml>
 ```
 
 See:
-- `examples/transition.yml` for input transitions.
-- `examples/transition-input.yml` for initial marking.
+- [`examples/transition.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition.yml) for input transitions.
+- [`examples/transition-input.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition-input.yml) for initial marking.
 
-Note: the syntax is not fixed yet.
+Note: syntax is not fixed yet.
 
 
 
