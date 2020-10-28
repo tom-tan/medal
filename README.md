@@ -36,6 +36,15 @@ $ cd medal
 $ dub build -b release
 ```
 
+or
+
+```console
+$ git clone https://github.com/tom-tan/medal.git
+$ cd medal
+$ docker run --rm -v ${PWD}:/medal --workdir=/medal dlang2/ldc-ubuntu dub build -b release
+```
+
+
 You will see `medal` in `bin` directory.
 
 ### How to dive into source codes
