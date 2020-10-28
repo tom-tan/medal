@@ -10,5 +10,11 @@
 	"targetPath": "bin",
 	"dependencies": {
 		"dyaml": "~>0.8.2"
+	},
+	"buildTypes": {
+		"release-static": {
+			"buildOptions": ["releaseMode", "optimize", "inline"],
+			"dflags-posix-ldc": ["-static"]
+		}
 	}
 }
