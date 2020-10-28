@@ -28,6 +28,10 @@ Note: syntax is not fixed yet.
 - D compiler
 - dub
 
+or
+
+- Docker
+
 ### How to build
 
 ```console
