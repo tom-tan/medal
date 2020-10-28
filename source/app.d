@@ -14,7 +14,7 @@ int main(string[] args)
     {
         immutable baseMessage = format(q"EOS
         Medal: Petri net executor
-        Usage: %s [options] <network.yaml>
+        Usage: %s [options] <network.yml>
 EOS".outdent[0..$-1], args[0]);
         defaultGetoptPrinter(baseMessage, helpInfo.options);
         return 0;
