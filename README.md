@@ -30,7 +30,7 @@ Note: syntax is not fixed yet.
 
 or
 
-- Docker
+- Docker (only for Linux)
 
 ### How to build
 
