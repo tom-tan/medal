@@ -55,11 +55,15 @@ EOS".outdent[0..$-1], args[0]);
 
     bool success;
     receive(
-        (in BindingElement be) {
-            writeln("Received: ", be);
+        (TransitionSucceeded ts) {
+            writeln("Received: ", ts);
             success = true;
         },
-        (in SignalSent ss) {
+        (TransitionFailed tf) {
+            writeln("Failed.");
+            success = false;
+        },
+        (SignalSent ss) {
             writefln("Signal %s is caught", ss.no);
             success = false;
         },

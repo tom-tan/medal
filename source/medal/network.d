@@ -30,7 +30,14 @@ immutable class InvocationTransition_: Transition
     {
         auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe);
-        send(networkTid, retBe);
+        if (retBe is null)
+        {
+            send(networkTid, TransitionFailed(initBe));
+        }
+        else
+        {
+            send(networkTid, TransitionSucceeded(retBe));
+        }
     }
 
     Transition[] transitions;
@@ -55,8 +62,8 @@ unittest
         net.fire(new BindingElement([Place("foo"): new Token("yahoo")]), ownerTid);
     });
     receive(
-        (in BindingElement be) {
-            assert(be == [Place("bar"): new Token("0")]);
+        (TransitionSucceeded ts) {
+            assert(ts.tokenElements == [Place("bar"): new Token("0")]);
         },
         (Variant _) { assert(false); },
     );

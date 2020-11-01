@@ -43,8 +43,8 @@ EOS";
     assert(cast(ShellCommandTransition)tr);
     spawnFire(tr, new BindingElement, thisTid);
     auto received = receiveTimeout(10.seconds,
-        (in BindingElement be) {
-            assert(be == [Place("ret"): new Token("0")]);
+        (TransitionSucceeded ts) {
+            assert(ts.tokenElements == [Place("ret"): new Token("0")]);
         },
         (Variant _) { assert(false); },
     );

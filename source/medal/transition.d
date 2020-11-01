@@ -147,6 +147,18 @@ struct OutputPattern
     // Type type
 }
 
+///
+struct TransitionSucceeded
+{
+    BindingElement tokenElements;
+}
+
+///
+struct TransitionFailed
+{
+    BindingElement tokenElements;
+}
+
 // std.concurrency cannot send/receive immutable AA
 // https://issues.dlang.org/show_bug.cgi?id=13930 (solved by Issue 21296)
 //alias BindingElement = immutable Token[Place];
@@ -167,6 +179,11 @@ immutable class BindingElement_
     bool opEquals(in Token[Place] otherTokenElements) const
     {
         return cast(const(Token[Place]))tokenElements == otherTokenElements;
+    }
+
+    bool empty() pure
+    {
+        return tokenElements.empty;
     }
 
     ///
@@ -321,8 +338,8 @@ immutable class ShellCommandTransition_: Transition
         auto serr = needStderr ? File("stderr", "w") : stderr;
         scope(exit) if (needStderr) serr.name.remove;
         
-        // instantiate variables using be
-        // Note: do not use environment variables for BindingElement!
+        auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
+
         auto cmd = commandWith(be);
         auto pid = spawnShell(cmd, stdin, sout, serr);
 
@@ -349,30 +366,35 @@ immutable class ShellCommandTransition_: Transition
 
         receive(
             (int code) {
-                auto be = result2BE(code);
-                if (!be.tokenElements.empty)
+                auto ret = result2BE(code);
+                if (needReturn || code == 0)
                 {
-                    send(networkTid, be);
+                    send(networkTid,
+                         TransitionSucceeded(ret));
+                }
+                else
+                {
+                    send(networkTid,
+                         TransitionFailed(be));
                 }
             },
             (in SignalSent sig) {
                 import core.sys.posix.signal: SIGINT;
 
                 kill(pid, SIGINT);
-                auto code = receiveOnly!int;
-                auto be = result2BE(code);
-                if (!be.tokenElements.empty)
-                {
-                    send(networkTid, be);
-                }
+                receiveOnly!int;
+                send(networkTid,
+                     TransitionFailed(be));
             },
             (Variant v) {
                 import core.sys.posix.signal: SIGINT;
+                import core.exception: AssertError;
 
-                // Unintended message
+                // Unintended object
                 kill(pid, SIGINT);
                 receiveOnly!int;
-                assert(false);
+                send(networkTid,
+                     new immutable AssertError("Unintended object: "~v.to!string));
             }
         );
         assert(tryWait(pid).terminated);
@@ -381,15 +403,26 @@ immutable class ShellCommandTransition_: Transition
     version(Posix)
     unittest
     {
-        // Nothing will be sent if it is a sink transition
-        auto tid = spawnLinked({
-            auto sct = new ShellCommandTransition("true", Guard.init,
-                                                  ArcExpressionFunction.init);
-            sct.fire(new BindingElement, ownerTid);
-        });
+        auto sct = new ShellCommandTransition("true", Guard.init,
+                                              ArcExpressionFunction.init);
+        spawnFire(sct, new BindingElement, thisTid);
         receive(
-            (LinkTerminated lt) {
-                assert(lt.tid == tid);
+            (TransitionSucceeded ts) {
+                assert(ts.tokenElements.empty);
+            },
+            (Variant v) { assert(false); },
+        );
+    }
+
+    version(Posix)
+    unittest
+    {
+        auto sct = new ShellCommandTransition("false", Guard.init,
+                                              ArcExpressionFunction.init);
+        spawnFire(sct, new BindingElement, thisTid);
+        receive(
+            (TransitionFailed tf) {
+                assert(tf.tokenElements.empty);
             },
             (Variant v) { assert(false); },
         );
@@ -405,10 +438,10 @@ immutable class ShellCommandTransition_: Transition
         auto sct = new ShellCommandTransition("true", Guard.init, aef);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
-            (in BindingElement be) {
-                assert(be == [Place("foo"): new Token("0")]);
+            (TransitionSucceeded ts) {
+                assert(ts.tokenElements == [Place("foo"): new Token("0")]);
             },
-            (Variant v) { assert(false); },
+            (Variant v) { assert(false, "Caught: "~v.to!string); },
         );
     }
 
@@ -421,8 +454,8 @@ immutable class ShellCommandTransition_: Transition
         auto sct = new ShellCommandTransition("echo bar", Guard.init, aef);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
-            (in BindingElement be) {
-                assert(be == [Place("foo"): new Token("bar")], format("[foo:bar] is expected but %s", be));
+            (TransitionSucceeded ts) {
+                assert(ts.tokenElements == [Place("foo"): new Token("bar")]);
             },
             (Variant v) { assert(false, v.to!string); },
         );
@@ -440,8 +473,8 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
-            (in BindingElement be) {
-                assert(be == [Place("foo"): new Token((-SIGINT).to!string)]);
+            (TransitionFailed tf) {
+                assert(tf.tokenElements.empty);
             },
             (Variant v) { assert(false); },
         );

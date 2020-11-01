@@ -64,21 +64,23 @@ struct Engine
     {
         auto running = true;
         Rebindable!(typeof(return)) ret;
-        send(thisTid, initBe);
+        send(thisTid, TransitionSucceeded(initBe));
         while(running)
         {
             receive(
-                (in BindingElement be) {
-                    store.put(be);
+                (TransitionSucceeded ts) {
+                    store.put(ts.tokenElements);
                     foreach(tr; rule.transitions)
                     {
                         if (auto nextBe = tr.fireable(store))
                         {
                             store.remove(nextBe);
-                            spawn((in Transition t, in BindingElement be) => t.fire(be, ownerTid),
-                                  tr, nextBe);
+                            spawnFire(tr, nextBe, thisTid);
                         }
                     }
+                },
+                (TransitionFailed tf) {
+                    running = false;
                 },
                 (in SignalSent sig) {
                     // send sig to all transitions
