@@ -6,6 +6,13 @@
 module medal.transition;
 
 import std;
+import std.experimental.logger;
+
+version(unittest)
+shared static this()
+{
+    sharedLog.logLevel = LogLevel.off;
+}
 
 ///
 enum SpecialPattern
@@ -261,7 +268,7 @@ alias Transition = immutable Transition_;
 immutable abstract class Transition_
 {
     ///
-    abstract void fire(in BindingElement be, Tid networkTid);
+    abstract void fire(in BindingElement be, Tid networkTid, Logger logger);
 
     ///
     BindingElement fireable(Store)(in Store s) pure
@@ -316,8 +323,11 @@ immutable class ShellCommandTransition_: Transition
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid)
+    override void fire(in BindingElement be, Tid networkTid, Logger logger = sharedLog)
     {
+        logger.info("start.");
+        scope(failure) logger.critical("unintended failure");
+
         auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
         if (needStdout)
         {
@@ -369,11 +379,13 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = result2BE(code);
                 if (needReturn || code == 0)
                 {
+                    logger.info("success.");
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
                 else
                 {
+                    logger.info("failure.");
                     send(networkTid,
                          TransitionFailed(be));
                 }
@@ -383,12 +395,15 @@ immutable class ShellCommandTransition_: Transition
 
                 kill(pid, SIGINT);
                 receiveOnly!int;
+                logger.info("interrupted.");
                 send(networkTid,
                      TransitionFailed(be));
             },
             (Variant v) {
                 import core.sys.posix.signal: SIGINT;
                 import core.exception: AssertError;
+
+                logger.info("unknown message.");
 
                 // Unintended object
                 kill(pid, SIGINT);
@@ -499,18 +514,18 @@ private:
 }
 
 ///
-Tid spawnFire(in Transition tr, in BindingElement be, Tid tid)
+Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Logger logger = sharedLog)
 {
-    return spawn((in Transition tr, in BindingElement be, Tid tid) {
+    return spawn((in Transition tr, in BindingElement be, Tid tid, shared Logger logger) {
         try
         {
-            tr.fire(be, tid);
+            tr.fire(be, tid, cast()logger);
         }
         catch(Exception e)
         {
             send(tid, cast(shared)e);
         }
-    }, tr, be, tid);
+    }, tr, be, tid, cast(shared)logger);
 }
 /+
 void fire(Transition tr, BindingElement be)

@@ -9,6 +9,13 @@ import medal.transition;
 import medal.engine;
 
 import std;
+import std.experimental.logger;
+
+version(unittest)
+shared static this()
+{
+    sharedLog.logLevel = LogLevel.off;
+}
 
 ///
 alias InvocationTransition = immutable InvocationTransition_;
@@ -26,17 +33,21 @@ immutable class InvocationTransition_: Transition
     }
 
     ///
-    override void fire(in BindingElement initBe, Tid networkTid)
+    override void fire(in BindingElement initBe, Tid networkTid, Logger logger = sharedLog)
     {
+        logger.info("start.");
+        scope(failure) logger.critical("unintended failure");
         auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe);
-        if (retBe is null)
+        if (retBe)
         {
-            send(networkTid, TransitionFailed(initBe));
+            logger.info("success.");
+            send(networkTid, TransitionSucceeded(retBe));
         }
         else
         {
-            send(networkTid, TransitionSucceeded(retBe));
+            logger.info("failure.");
+            send(networkTid, TransitionFailed(initBe));
         }
     }
 

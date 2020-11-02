@@ -8,6 +8,7 @@ module medal.engine;
 import medal.transition;
 
 import std;
+import std.experimental.logger;
 
 ///
 struct EngineWillStop
@@ -26,8 +27,11 @@ immutable class EngineStopTransition_: Transition
         super(g, ArcExpressionFunction.init);
     }
 
-    override void fire(in BindingElement be, Tid networkTid) const
+    override void fire(in BindingElement be, Tid networkTid, Logger logger = null) const
     {
+        logger.info("start.");
+        scope(failure) logger.critical("unintended failure");
+        logger.info("success.");
         send(networkTid, EngineWillStop(be));
     }
 }
@@ -60,7 +64,7 @@ struct Engine
     }
 
     ///
-    BindingElement run(in BindingElement initBe)
+    BindingElement run(in BindingElement initBe, Logger logger = sharedLog)
     {
         auto running = true;
         Rebindable!(typeof(return)) ret;
@@ -69,17 +73,20 @@ struct Engine
         {
             receive(
                 (TransitionSucceeded ts) {
+                    logger.info("success");
                     store.put(ts.tokenElements);
                     foreach(tr; rule.transitions)
                     {
                         if (auto nextBe = tr.fireable(store))
                         {
                             store.remove(nextBe);
-                            spawnFire(tr, nextBe, thisTid);
+                            logger.info("start");
+                            spawnFire(tr, nextBe, thisTid, logger);
                         }
                     }
                 },
                 (TransitionFailed tf) {
+                    logger.info("failed");
                     running = false;
                 },
                 (in SignalSent sig) {
