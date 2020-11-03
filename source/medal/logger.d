@@ -32,6 +32,7 @@ class JSONLogger: Logger
         JSONValue log;
         log["timestamp"] = payload.timestamp.toISOExtString;
         log["thread-id"] = payload.threadId.to!string;
+        log["log-level"] = payload.logLevel.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;
         file.writeln(log);
