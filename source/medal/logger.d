@@ -34,7 +34,7 @@ class JSONLogger: Logger
         log["thread-id"] = payload.threadId.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;
-        file.writeln(log.toString);
+        file.writeln(log);
     }
 
     protected File file_;
