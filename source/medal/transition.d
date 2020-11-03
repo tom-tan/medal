@@ -128,6 +128,13 @@ struct InputPattern
             return pattern == token.value ? token : null;
         }
     }
+
+    ///
+    string toString() const pure
+    {
+        return pattern;
+    }
+
     string pattern;
     // Type type
 }
@@ -150,6 +157,13 @@ struct OutputPattern
             return new Token(pattern);
         }
     }
+
+    ///
+    string toString() const pure
+    {
+        return pattern;
+    }
+
     string pattern;
     // Type type
 }
@@ -157,13 +171,28 @@ struct OutputPattern
 ///
 struct TransitionSucceeded
 {
+    this(in BindingElement tokenElems)
+    {
+        tokenElements = tokenElems;
+        tid = thisTid;
+    }
+
     BindingElement tokenElements;
+    Tid tid;
 }
 
 ///
 struct TransitionFailed
 {
+    this(in BindingElement tokenElems, in string c = "")
+    {
+        tokenElements = tokenElems;
+        tid = thisTid;
+        cause = c;
+    }
     BindingElement tokenElements;
+    Tid tid;
+    string cause;
 }
 
 // std.concurrency cannot send/receive immutable AA
@@ -194,7 +223,7 @@ immutable class BindingElement_
     }
 
     ///
-    string toString() pure
+    string toString() const pure
     {
         return tokenElements.to!string;
     }
@@ -325,13 +354,15 @@ immutable class ShellCommandTransition_: Transition
     ///
     override void fire(in BindingElement be, Tid networkTid, Logger logger = sharedLog)
     {
-        logger.info("start.");
-        scope(failure) logger.critical("unintended failure");
+        logger.info(startMsg(be));
+        scope(failure) logger.critical(failureMsg(be, "unknown error"));
 
         auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
         if (needStdout)
         {
-            send(networkTid, "stdout is not yet supported");
+            auto msg = "stdout is not yet supported";
+            logger.info(failureMsg(be, msg));
+            send(networkTid, TransitionFailed(be, msg));
             return;
         }
         // TODO: output file name should be random
@@ -341,7 +372,9 @@ immutable class ShellCommandTransition_: Transition
         auto needStderr = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stderr);
         if (needStderr)
         {
-            send(networkTid, "stderr is not yet supported");
+            auto msg = "stderr is not yet supported";
+            logger.info(failureMsg(be, msg));
+            send(networkTid, TransitionFailed(be, msg));
             return;
         }
         // TODO: output file name should be random
@@ -379,15 +412,16 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = result2BE(code);
                 if (needReturn || code == 0)
                 {
-                    logger.info("success.");
+                    logger.info(successMsg(be, ret));
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
                 else
                 {
-                    logger.info("failure.");
+                    auto msg = "command returned with non-zero";
+                    logger.info(failureMsg(be, msg));
                     send(networkTid,
-                         TransitionFailed(be));
+                         TransitionFailed(be, msg));
                 }
             },
             (in SignalSent sig) {
@@ -395,21 +429,20 @@ immutable class ShellCommandTransition_: Transition
 
                 kill(pid, SIGINT);
                 receiveOnly!int;
-                logger.info("interrupted.");
+                auto msg = format!"interrupted (%s)"(sig.no);
+                logger.info(failureMsg(be, msg));
                 send(networkTid,
-                     TransitionFailed(be));
+                     TransitionFailed(be, msg));
             },
             (Variant v) {
                 import core.sys.posix.signal: SIGINT;
-                import core.exception: AssertError;
 
-                logger.info("unknown message.");
-
-                // Unintended object
                 kill(pid, SIGINT);
                 receiveOnly!int;
-                send(networkTid,
-                     new immutable AssertError("Unintended object: "~v.to!string));
+
+                auto msg = format!"unknown message (%s)"(v);
+                logger.critical(failureMsg(be, msg));
+                send(networkTid, TransitionFailed(be, msg));
             }
         );
         assert(tryWait(pid).terminated);
@@ -510,6 +543,46 @@ private:
         auto be = new BindingElement([Place("foo"): new Token("3")]);
         assert(t.commandWith(be) == "echo 3", t.commandWith(be));
     }
+
+    JSONValue startMsg(in BindingElement be)
+    {
+        JSONValue ret;
+        ret["sender"] = "transition";
+        ret["event"] = "start";
+        ret["transition-type"] = "shell";
+        ret["in"] = be.tokenElements.to!(string[string]);
+        ret["out"] = arcExpFun.to!(string[string]);
+        ret["command"] = command;
+        return ret;
+    }
+    
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe)
+    {
+        JSONValue ret;
+        ret["sender"] = "transition";
+        ret["event"] = "end";
+        ret["transition-type"] = "shell";
+        ret["in"] = ibe.tokenElements.to!(string[string]);
+        ret["out"] = obe.tokenElements.to!(string[string]);
+        ret["command"] = command;
+        ret["success"] = true;
+        return ret;
+    }
+
+    JSONValue failureMsg(in BindingElement be, in string cause)
+    {
+        JSONValue ret;
+        ret["sender"] = "transition";
+        ret["event"] = "end";
+        ret["transition-type"] = "shell";
+        ret["in"] = be.tokenElements.to!(string[string]);
+        ret["out"] = arcExpFun.to!(string[string]);
+        ret["command"] = command;
+        ret["success"] = false;
+        ret["cause"] = cause;
+        return ret;
+    }
+
     string command;
 }
 

@@ -3,8 +3,10 @@ module medal.logger;
 import std;
 import std.experimental.logger;
 
+///
 class JSONLogger: Logger
 {
+    ///
     this(const string fn, const LogLevel lv = LogLevel.all)
     {
         super(lv);
@@ -12,12 +14,14 @@ class JSONLogger: Logger
         this.file_.open(this.filename, "a");
     }
 
+    ///
     this(File file, const LogLevel lv = LogLevel.all)
     {
         super(lv);
         this.file_ = file;
     }
 
+    ///
     @property File file()
     {
         return this.file_;
@@ -26,9 +30,8 @@ class JSONLogger: Logger
     override void writeLogMsg(ref LogEntry payload) @trusted
     {
         JSONValue log;
-        payload.timestamp.timezone = LocalTime();
-        log["date"] = payload.timestamp.toISOExtString;
-        log["tid"] = payload.threadId.to!string;
+        log["timestamp"] = payload.timestamp.toISOExtString;
+        log["thread-id"] = payload.threadId.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;
         file.writeln(log.toString);

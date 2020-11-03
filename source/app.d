@@ -15,13 +15,25 @@ import medal.logger;
 
 int main(string[] args)
 {
-    sharedLog = new JSONLogger(stderr, LogLevel.info);
+    LogLevel lv = LogLevel.info;
     string initFile;
+    string logFile;
     auto helpInfo = args.getopt(
         std.getopt.config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
-        "quiet", () => sharedLog.logLevel = LogLevel.off,
+        "quiet", "Do not print any logs", () { lv = LogLevel.off; },
+        "debug", "Enable debug logs", () { lv = LogLevel.trace; },
+        "log", "Specify log destination (default: stderr)", &logFile,
     );
+    if (logFile.empty)
+    {
+        sharedLog = new JSONLogger(stderr, lv);
+    }
+    else
+    {
+        sharedLog = new JSONLogger(logFile, lv);
+    }
+
     if (helpInfo.helpWanted || args.length != 2)
     {
         immutable baseMessage = format(q"EOS
@@ -35,7 +47,7 @@ EOS".outdent[0..$-1], args[0]);
     auto netFile = args[1];
     if (!netFile.exists)
     {
-        sharedLog.critical("Network file is not found: "~netFile);
+        sharedLog.critical(failureMsg("Network file is not found: "~netFile));
         return 1;
     }
     Node netRoot = Loader.fromFile(netFile).load;
@@ -53,7 +65,7 @@ EOS".outdent[0..$-1], args[0]);
     }
     else
     {
-        sharedLog.critical("Initial marking file is not found: "~initFile);
+        sharedLog.critical(failureMsg("Initial marking file is not found: "~initFile));
         return 1;
     }
 
@@ -62,25 +74,39 @@ EOS".outdent[0..$-1], args[0]);
     bool success;
     receive(
         (TransitionSucceeded ts) {
-            sharedLog.info("Received: ", ts);
+            sharedLog.info(successMsg(ts));
             success = true;
         },
         (TransitionFailed tf) {
-            sharedLog.info("Failed.");
+            sharedLog.info(failureMsg("transition failure"));
             success = false;
         },
         (SignalSent ss) {
-            sharedLog.info("Signal %s is caught", ss.no);
-            success = false;
-        },
-        (shared Throwable e) {
-            sharedLog.criticalf("Exception in %s(%s): %s", e.file, e.line, e.msg);
+            sharedLog.info(failureMsg(format!"signal %s is sent"(ss.no)));
             success = false;
         },
         (Variant v) {
-            sharedLog.critical("Error: ", v);
+            sharedLog.critical(failureMsg(format!"Unintended object is received: %s"(v)));
             success = false;
         },
     );
     return success ? 0 : 1;
+}
+
+JSONValue successMsg(in TransitionSucceeded ts)
+{
+    JSONValue ret;
+    ret["sender"] = "medal";
+    ret["success"] = true;
+    ret["result"] = ts.tokenElements.tokenElements.to!(string[string]);
+    return ret;
+}
+
+JSONValue failureMsg(in string cause)
+{
+    JSONValue ret;
+    ret["sender"] = "medal";
+    ret["success"] = false;
+    ret["cause"] = cause;
+    return ret;
 }
