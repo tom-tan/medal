@@ -3,6 +3,11 @@
     name "net2dot"
     dependency "dyaml" version="~>0.8.2"
 +/
+/**
+ * Authors: Tomoya Tanjo
+ * Copyright: © 2020 Tomoya Tanjo
+ * License: Apache-2.0
+ */
 import std;
 import dyaml;
 
