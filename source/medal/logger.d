@@ -12,6 +12,9 @@ class JSONLogger: Logger
         super(lv);
         this.filename = fn;
         this.file_.open(this.filename, "a");
+        auto now = Clock.currTime;
+        auto offset = now.utcOffset;
+        tz = new immutable SimpleTimeZone(offset);
     }
 
     ///
@@ -19,6 +22,9 @@ class JSONLogger: Logger
     {
         super(lv);
         this.file_ = file;
+        auto now = Clock.currTime;
+        auto offset = now.utcOffset;
+        tz = new immutable SimpleTimeZone(offset);
     }
 
     ///
@@ -30,7 +36,7 @@ class JSONLogger: Logger
     override void writeLogMsg(ref LogEntry payload) @trusted
     {
         JSONValue log;
-        log["timestamp"] = payload.timestamp.toISOExtString;
+        log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
         log["thread-id"] = payload.threadId.to!string;
         log["log-level"] = payload.logLevel.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
@@ -40,4 +46,5 @@ class JSONLogger: Logger
 
     protected File file_;
     protected string filename;
+    protected immutable TimeZone tz;
 }
