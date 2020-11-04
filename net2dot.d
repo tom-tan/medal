@@ -17,7 +17,7 @@ void main(string[] args)
 {
     if (args.length != 3)
     {
-        writefln("Usage: %s <input.yml> <output.dot>\n", args[0]);
+        writefln("Usage: %s <input.yml> <output.dot>\n", args[0].baseName);
         return;
     }
     auto inp = args[1];

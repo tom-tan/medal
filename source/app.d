@@ -39,7 +39,7 @@ int main(string[] args)
         immutable baseMessage = format(q"EOS
         Medal: A workflow engine based on Petri nets
         Usage: %s [options] <network.yml>
-EOS".outdent[0..$-1], args[0]);
+EOS".outdent[0..$-1], args[0].baseName);
         defaultGetoptPrinter(baseMessage, helpInfo.options);
         return 0;
     }
