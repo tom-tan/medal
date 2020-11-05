@@ -28,7 +28,7 @@ alias ShellCommandTransition = immutable ShellCommandTransition_;
 immutable class ShellCommandTransition_: Transition
 {
     ///
-    this(string cmd, in Guard guard, in ArcExpressionFunction aef) pure
+    this(string cmd, in Guard guard, in ArcExpressionFunction aef) @nogc nothrow pure @safe
     in(!cmd.empty)
     do
     {
@@ -251,7 +251,7 @@ immutable class ShellCommandTransition_: Transition
         assert(received);
     }
 private:
-    string commandWith(in BindingElement be) const pure
+    string commandWith(in BindingElement be) const pure @safe
     {
         import std.algorithm : fold;
         import std.array : byPair, replace;
@@ -262,7 +262,7 @@ private:
         })(command);
     }
 
-    unittest
+    @safe pure unittest
     {
         auto t = new ShellCommandTransition("echo #{foo}", Guard.init,
                                             ArcExpressionFunction.init);
@@ -270,7 +270,7 @@ private:
         assert(t.commandWith(be) == "echo 3", t.commandWith(be));
     }
 
-    JSONValue startMsg(in BindingElement be)
+    JSONValue startMsg(in BindingElement be) const pure @safe
     {
         import std.conv : to;
 
@@ -284,7 +284,7 @@ private:
         return ret;
     }
     
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe)
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe) const pure @safe
     {
         import std.conv : to;
 
@@ -299,7 +299,7 @@ private:
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cause)
+    JSONValue failureMsg(in BindingElement be, in string cause) const pure @safe
     {
         import std.conv : to;
 

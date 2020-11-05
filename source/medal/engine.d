@@ -20,22 +20,23 @@ struct EngineWillStop
 ///
 alias EngineStopTransition = immutable EngineStopTransition_;
 ///
-immutable class EngineStopTransition_: Transition
+@safe immutable class EngineStopTransition_: Transition
 {
     ///
-    this(in Guard g) pure
+    this(in Guard g) @nogc nothrow pure
     {
         super(g, ArcExpressionFunction.init);
     }
 
-    override void fire(in BindingElement be, Tid networkTid, Logger logger = null) const
+    ///
+    override void fire(in BindingElement be, Tid networkTid, Logger logger = null) const @trusted
     {
         scope(success) logger.trace(oneShotMsg(be));
         scope(failure) logger.critical(failureMsg(be, "unknown error"));
         send(networkTid, EngineWillStop(be));
     }
 
-    JSONValue oneShotMsg(in BindingElement be)
+    static JSONValue oneShotMsg(in BindingElement be)
     {
         JSONValue ret;
         ret["sender"] = "transition";
@@ -46,7 +47,7 @@ immutable class EngineStopTransition_: Transition
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cause)
+    static JSONValue failureMsg(in BindingElement be, in string cause)
     {
         JSONValue ret;
         ret["sender"] = "transition";
@@ -63,7 +64,7 @@ immutable class EngineStopTransition_: Transition
 struct Engine
 {
     ///
-    this(in Transition tr)
+    this(in Transition tr) nothrow pure @trusted
     {
         auto g = tr.arcExpFun
                    .byKey
@@ -73,7 +74,7 @@ struct Engine
     }
 
     ///
-    this(in Transition[] trs, in Guard stopGuard = Guard.init)
+    this(in Transition[] trs, in Guard stopGuard = Guard.init) nothrow pure @safe
     in(!trs.empty)
     do
     {
@@ -131,7 +132,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue recvMsg(in TransitionSucceeded ts)
+    JSONValue recvMsg(in TransitionSucceeded ts) @trusted
     {
         JSONValue ret;
         ret["sender"] = "engine";
@@ -142,7 +143,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue recvMsg(in TransitionFailed tf)
+    JSONValue recvMsg(in TransitionFailed tf) @trusted
     {
         JSONValue ret;
         ret["sender"] = "engine";
@@ -154,7 +155,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue startMsg(in BindingElement be)
+    JSONValue startMsg(in BindingElement be) @trusted
     {
         JSONValue ret;
         ret["sender"] = "engine";
@@ -163,7 +164,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue stopMsg(in BindingElement be)
+    JSONValue stopMsg(in BindingElement be) @trusted
     {
         JSONValue ret;
         ret["sender"] = "engine";
@@ -172,7 +173,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue fireMsg(in Transition tr, in BindingElement be, in Tid tid)
+    JSONValue fireMsg(in Transition tr, in BindingElement be, in Tid tid) @trusted
     {
         JSONValue ret;
         ret["sender"] = "engine";
@@ -192,7 +193,7 @@ struct Engine
 struct Store
 {
     ///
-    this(in Transition[] trs) pure
+    this(in Transition[] trs) nothrow pure @safe
     in(!trs.empty)
     do
     {
@@ -205,7 +206,7 @@ struct Store
     }
 
     ///
-    void put(in BindingElement be) pure
+    void put(in BindingElement be) pure @safe
     in(be.tokenElements.byPair.all!(pt => pt[0] in state))
     do
     {
@@ -230,7 +231,7 @@ struct Store
 
     // `dispatch(BindingElement) const pure` needs much duplication cost...
 
-    string toString() const pure
+    string toString() const pure @safe
     {
         return state.to!string;
     }
@@ -238,9 +239,10 @@ struct Store
 }
 
 ///
-struct Rule
+@safe struct Rule
 {
-    this(in Transition[] trs) pure
+    ///
+    this(in Transition[] trs) @nogc nothrow pure
     {
         transitions = trs;
     }

@@ -11,7 +11,7 @@ import std.stdio : File;
 public import std.experimental.logger : LogLevel, Logger, sharedLog;
 
 ///
-class JSONLogger: Logger
+@safe class JSONLogger: Logger
 {
     ///
     this(const string fn, const LogLevel lv = LogLevel.all)
@@ -41,12 +41,12 @@ class JSONLogger: Logger
     }
 
     ///
-    @property File file()
+    @property File file() nothrow
     {
         return this.file_;
     }
 
-    override void writeLogMsg(ref LogEntry payload) @trusted
+    override void writeLogMsg(ref LogEntry payload)
     {
         import std.conv : to;
         import std.exception : ifThrown;
@@ -54,7 +54,7 @@ class JSONLogger: Logger
 
         JSONValue log;
         log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
-        log["thread-id"] = payload.threadId.to!string;
+        log["thread-id"] = () @trusted { return payload.threadId.to!string; }();
         log["log-level"] = payload.logLevel.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;

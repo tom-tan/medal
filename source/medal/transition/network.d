@@ -25,7 +25,7 @@ alias InvocationTransition = immutable InvocationTransition_;
 immutable class InvocationTransition_: Transition
 {
     ///
-    this(in Guard g1, in Guard g2, in Transition[] trs) pure
+    this(in Guard g1, in Guard g2, in Transition[] trs) @nogc nothrow pure @safe
     in(!trs.empty)
     do 
     {
@@ -59,7 +59,7 @@ immutable class InvocationTransition_: Transition
     }
 
 private:
-    JSONValue startMsg(in BindingElement be)
+    JSONValue startMsg(in BindingElement be) const pure @safe
     {
         import std.conv : to;
 
@@ -72,7 +72,7 @@ private:
         return ret;
     }
     
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe)
+    static JSONValue successMsg(in BindingElement ibe, in BindingElement obe) pure @safe
     {
         import std.conv : to;
 
@@ -86,7 +86,7 @@ private:
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cause = "")
+    JSONValue failureMsg(in BindingElement be, in string cause = "") const pure @safe
     {
         import std.conv : to;
 

@@ -9,6 +9,8 @@ import medal.transition.core : BindingElement;
 
 import std.concurrency : thisTid, Tid;
 
+@safe:
+
 ///
 struct SignalSent
 {

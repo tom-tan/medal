@@ -18,27 +18,27 @@ shared static this()
 
 
 ///
-struct Place
+@safe struct Place
 {
     ///
-    this(string n, string ns = "") inout pure
+    this(string n, string ns = "") inout @nogc nothrow pure
     {
         namespace = ns;
         name = n;
     }
 
-    size_t toHash() const nothrow pure @safe
+    size_t toHash() const @nogc nothrow pure
     {
         return name.hashOf(namespace.hashOf);
     }
 
-    bool opEquals(ref const Place other) const pure
+    bool opEquals(ref const Place other) const @nogc nothrow pure
     {
         return namespace == other.namespace && name == other.name;
     }
 
     ///
-    string toString() const pure
+    string toString() const nothrow pure
     {
         import std.range : empty;
         return namespace.empty ? name : namespace~"::"~name;
@@ -50,15 +50,15 @@ struct Place
 }
 
 ///
-class Token
+@safe class Token
 {
     ///
-    this(string val) pure
+    this(string val) @nogc nothrow pure
     {
         value = val;
     }
 
-    override bool opEquals(in Object other) const pure
+    override bool opEquals(in Object other) const @nogc nothrow pure
     {
         if (auto t = cast(const Token)other)
         {
@@ -71,7 +71,7 @@ class Token
     }
 
     ///
-    override string toString() const pure
+    override string toString() const @nogc nothrow pure
     {
         return value;
     }
@@ -85,24 +85,28 @@ class Token
 //alias BindingElement = immutable Token[Place];
 alias BindingElement = immutable BindingElement_;
 ///
-immutable class BindingElement_
+@safe immutable class BindingElement_
 {
     ///
-    this() pure { tokenElements = (Token[Place]).init; }
+    this() @nogc nothrow pure
+    { 
+        tokenElements = (Token[Place]).init;
+    }
 
     ///
-    this(immutable Token[Place] tokenElems) pure
+    this(immutable Token[Place] tokenElems) @nogc nothrow pure
     {
         tokenElements = tokenElems;
     }
 
     ///
-    bool opEquals(in Token[Place] otherTokenElements) const
+    bool opEquals(in Token[Place] otherTokenElements) const @nogc nothrow pure
     {
         return cast(const(Token[Place]))tokenElements == otherTokenElements;
     }
 
-    bool empty() pure
+    ///
+    bool empty() const @nogc nothrow pure
     {
         import std.range : empty;
         return tokenElements.empty;
@@ -139,6 +143,7 @@ struct CommandResult
     int code;
 }
 
+///
 enum PatternType
 {
     Constant,
@@ -151,9 +156,10 @@ enum PatternType
 
 
 ///
-struct InputPattern
+@safe struct InputPattern
 {
-    this(string pat)
+    ///
+    this(string pat) @nogc nothrow pure
     {
         if (pat == SpecialPattern.Any)
         {
@@ -167,7 +173,7 @@ struct InputPattern
     }
 
     ///
-    const(Token) match(in Token token) const pure
+    const(Token) match(in Token token) const @nogc nothrow pure
     {
         final switch(ptype) with(PatternType)
         {
@@ -181,7 +187,7 @@ struct InputPattern
     }
 
     ///
-    string toString() const pure
+    string toString() const @nogc nothrow pure
     {
         return pattern;
     }
@@ -196,9 +202,10 @@ struct InputPattern
 }
 
 ///
-struct OutputPattern
+@safe struct OutputPattern
 {
-    this(string pat)
+    ///
+    this(string pat) @nogc nothrow pure
     {
         import std.algorithm : startsWith;
 
@@ -230,7 +237,7 @@ struct OutputPattern
     }
 
     ///
-    const(Token) match(in BindingElement be, in CommandResult result) const pure
+    const(Token) match(in BindingElement be, in CommandResult result) const nothrow pure
     {
         import std.algorithm : find;
         import std.array : byPair;
@@ -254,7 +261,7 @@ struct OutputPattern
     }
 
     ///
-    string toString() const pure
+    string toString() const nothrow pure
     {
         return ptype == PatternType.Place ? "$"~pattern : pattern;
     }
@@ -273,7 +280,7 @@ struct OutputPattern
 alias ArcExpressionFunction = immutable OutputPattern[Place];
 
 ///
-BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) pure
+BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) nothrow pure @trusted
 {
     import std.algorithm : map;
     import std.array : assocArray, byPair;
@@ -284,12 +291,12 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
         auto place = kv.key;
         auto pat = kv.value;
         return tuple(place, cast()pat.match(be, result));
-    }).assocArray;
-    return new BindingElement(tokenElems.assumeUnique);
+    }).assocArray; // unsafe: assocArray
+    return new BindingElement(tokenElems.assumeUnique); // unsafe: assumeUnique
 }
 
 ///
-unittest
+@safe nothrow pure unittest
 {
     import std.array : empty;
 
@@ -299,7 +306,7 @@ unittest
 }
 
 ///
-unittest
+@safe nothrow pure unittest
 {
     immutable aef = [
         Place("foo"): OutputPattern("constant-value"),
@@ -308,7 +315,8 @@ unittest
     assert(be == [Place("foo"): new Token("constant-value")]);
 }
 
-unittest
+///
+@safe nothrow pure unittest
 {
     immutable aef = [
         Place("foo"): OutputPattern(SpecialPattern.Stdout),
@@ -319,7 +327,7 @@ unittest
 }
 
 ///
-unittest
+@safe nothrow pure unittest
 {
     immutable aef = [
         Place("foo"): OutputPattern(SpecialPattern.Return),
@@ -333,7 +341,8 @@ unittest
     ]);
 }
 
-unittest
+///
+@safe nothrow pure unittest
 {
     immutable aef = [
         Place("buzz"): OutputPattern("$foo"),
@@ -357,7 +366,7 @@ immutable abstract class Transition_
     abstract void fire(in BindingElement be, Tid networkTid, Logger logger);
 
     ///
-    BindingElement fireable(Store)(in Store s) pure
+    BindingElement fireable(Store)(in Store s) nothrow pure
     {
         import std.algorithm : find;
         import std.array : byPair;
@@ -372,7 +381,7 @@ immutable abstract class Transition_
                 auto rng = (*tokens)[].find!(t => ipattern.match(t));
                 if (!rng.empty)
                 {
-                    tokenElems[place] = cast()rng.front;
+                    tokenElems[place] = cast()rng.front; // unsafe
                 }
                 else
                 {
@@ -384,11 +393,11 @@ immutable abstract class Transition_
                 return null;
             }
         }
-        return new BindingElement(tokenElems.assumeUnique);
+        return new BindingElement(tokenElems.assumeUnique); // unsafe
     }
 
     ///
-    this(in Guard g, in ArcExpressionFunction aef) pure
+    this(in Guard g, in ArcExpressionFunction aef) @nogc nothrow pure @safe
     {
         guard = g;
         arcExpFun = aef;
