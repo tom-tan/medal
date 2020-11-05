@@ -93,21 +93,20 @@ private:
 
 unittest
 {
-    spawn({
-        immutable aef = [
-            Place("bar"): OutputPattern(SpecialPattern.Return),
-        ];
-        immutable g = [
-            Place("foo"): InputPattern(SpecialPattern.Any),
-        ];
-        auto sct = new ShellCommandTransition("true #{foo}", g, aef);
-        Transition[] trs = [sct];
-        immutable portGuard = [
-            Place("bar"): InputPattern(SpecialPattern.Any),
-        ];
-        auto net = new InvocationTransition(g, portGuard, trs);
-        net.fire(new BindingElement([Place("foo"): new Token("yahoo")]), ownerTid);
-    });
+    immutable aef = [
+        Place("bar"): OutputPattern(SpecialPattern.Return),
+    ];
+    immutable g = [
+        Place("foo"): InputPattern(SpecialPattern.Any),
+    ];
+    auto sct = new ShellCommandTransition("true #{foo}", g, aef);
+    Transition[] trs = [sct];
+    immutable portGuard = [
+        Place("bar"): InputPattern(SpecialPattern.Any),
+    ];
+    auto net = new InvocationTransition(g, portGuard, trs);
+
+    spawnFire(net, new BindingElement([Place("foo"): new Token("yahoo")]), thisTid);
     receive(
         (TransitionSucceeded ts) {
             assert(ts.tokenElements == [Place("bar"): new Token("0")]);
