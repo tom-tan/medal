@@ -37,7 +37,7 @@ immutable class ShellCommandTransition_: Transition
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid, Logger logger = sharedLog)
+    protected override void fire(in BindingElement be, Tid networkTid, Logger logger = sharedLog)
     {
         import medal.message : SignalSent, TransitionFailed, TransitionSucceeded;
         import std.algorithm : canFind;

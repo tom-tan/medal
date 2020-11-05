@@ -363,7 +363,7 @@ alias Transition = immutable Transition_;
 immutable abstract class Transition_
 {
     ///
-    abstract void fire(in BindingElement be, Tid networkTid, Logger logger);
+    protected abstract void fire(in BindingElement be, Tid networkTid, Logger logger);
 
     ///
     BindingElement fireable(Store)(in Store s) nothrow pure

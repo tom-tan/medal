@@ -34,6 +34,7 @@ immutable class InvocationTransition_: Transition
         stopGuard = g2;
     }
 
+protected:
     ///
     override void fire(in BindingElement initBe, Tid networkTid, Logger logger = sharedLog)
     {
