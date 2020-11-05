@@ -1,0 +1,46 @@
+name: pass-through
+type: network
+out:
+  - place: dealloc_state
+    pattern: done
+transitions:
+  - name: allocate
+    type: shell
+    in:
+      - place: alloc_state
+        pattern: not-started
+    out:
+      - place: alloc_state
+        pattern: done
+      - place: resource
+        pattern: super-fast-computer
+    command: echo "allocate super fast computer!"
+  - name: execute
+    type: shell
+    in:
+      - place: exec_state
+        pattern: not-started
+      - place: resource
+        pattern: _
+    out:
+      - place: exec_state
+        pattern: done
+      - place: resource
+        pattern: $resource
+    command: "echo run something in #{resource}"
+  - name: deallocate
+    type: shell
+    in:
+      - place: dealloc_state
+        pattern: not-started
+      - place: exec_state
+        pattern: done
+      - place: resource
+        pattern: _
+    out:
+      - place: dealloc_state
+        pattern: done
+      - place: exec_state
+        pattern: $exec_state
+    command: "echo deallocate #{resource}"
+
