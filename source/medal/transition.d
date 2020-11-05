@@ -15,7 +15,7 @@ shared static this()
 }
 
 ///
-enum SpecialPattern
+enum SpecialPattern: string
 {
     Any = "_", ///
     Stdout = "STDOUT", ///
@@ -114,18 +114,43 @@ class Token
     string value;
 }
 
+enum PatternType
+{
+    Constant,
+    Place,
+    Any,
+    Stdout,
+    Stderr,
+    Return,
+}
+
 ///
 struct InputPattern
 {
+    this(string pat)
+    {
+        if (pat == SpecialPattern.Any)
+        {
+            ptype = PatternType.Any;
+        }
+        else
+        {
+            ptype = PatternType.Constant;
+        }
+        pattern = pat;
+    }
+
     ///
     const(Token) match(in Token token) const pure
     {
-        switch(pattern) with(SpecialPattern)
+        final switch(ptype) with(PatternType)
         {
         case Any:
             return token;
-        default:
+        case Constant:
             return pattern == token.value ? token : null;
+        case Stdout, Stderr, Return, Place:
+            assert(false);
         }
     }
 
@@ -135,37 +160,80 @@ struct InputPattern
         return pattern;
     }
 
+    invariant
+    {
+        assert(ptype == PatternType.Any || ptype == PatternType.Constant);
+    }
+
     string pattern;
-    // Type type
+    PatternType ptype;
 }
 
 ///
 struct OutputPattern
 {
-    ///
-    Token match(in CommandResult result) const pure
+    this(string pat)
     {
-        switch(pattern) with(SpecialPattern)
+        if (pat.startsWith("$"))
         {
+            ptype = PatternType.Place;
+            pattern = pat[1..$];
+        }
+        else if (pat == SpecialPattern.Stdout)
+        {
+            ptype = PatternType.Stdout;
+            pattern = pat;
+        }
+        else if (pat == SpecialPattern.Stderr)
+        {
+            ptype = PatternType.Stderr;
+            pattern = pat;
+        }
+        else if (pat == SpecialPattern.Return)
+        {
+            ptype = PatternType.Return;
+            pattern = pat;
+        }
+        else
+        {
+            ptype = PatternType.Constant;
+            pattern = pat;
+        }
+    }
+
+    ///
+    const(Token) match(in BindingElement be, in CommandResult result) const pure
+    {
+        final switch(ptype) with(PatternType)
+        {
+        case Place:
+            return be.tokenElements.byPair.find!(pt => pt[0].name == pattern).front.value;
         case Stdout:
             return new Token(result.stdout);
         case Stderr:
             return new Token(result.stderr);
         case Return:
             return new Token(result.code.to!string);
-        default:
+        case Constant:
             return new Token(pattern);
+        case Any:
+            assert(false);
         }
     }
 
     ///
     string toString() const pure
     {
-        return pattern;
+        return ptype == PatternType.Place ? "$"~pattern : pattern;
+    }
+
+    invariant
+    {
+        assert(ptype != PatternType.Any);
     }
 
     string pattern;
-    // Type type
+    PatternType ptype;
 }
 
 ///
@@ -235,12 +303,12 @@ immutable class BindingElement_
 alias ArcExpressionFunction = immutable OutputPattern[Place];
 
 ///
-BindingElement apply(ArcExpressionFunction aef, CommandResult result) pure
+BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) pure
 {
     auto tokenElems = aef.byPair.map!((kv) {
         auto place = kv.key;
         auto pat = kv.value;
-        return tuple(place, pat.match(result));
+        return tuple(place, cast()pat.match(be, result));
     }).assocArray;
     return new BindingElement(tokenElems.assumeUnique);
 }
@@ -249,7 +317,7 @@ BindingElement apply(ArcExpressionFunction aef, CommandResult result) pure
 unittest
 {
     ArcExpressionFunction aef;
-    auto be = aef.apply(CommandResult.init);
+    auto be = aef.apply(BindingElement.init, CommandResult.init);
     assert(be.tokenElements.empty);
 }
 
@@ -259,7 +327,7 @@ unittest
     immutable aef = [
         Place("foo"): OutputPattern("constant-value"),
     ];
-    auto be = aef.apply(CommandResult.init);
+    auto be = aef.apply(BindingElement.init, CommandResult.init);
     assert(be == [Place("foo"): new Token("constant-value")]);
 }
 
@@ -268,9 +336,9 @@ unittest
     immutable aef = [
         Place("foo"): OutputPattern(SpecialPattern.Stdout),
     ];
-    CommandResult result = { stdout: "standard output" };
-    auto be = aef.apply(result);
-    assert(be == [Place("foo"): new Token("standard output")]);        
+    CommandResult result = { stdout: "stdout.txt" };
+    auto be = aef.apply(BindingElement.init, result);
+    assert(be == [Place("foo"): new Token("stdout.txt")]);
 }
 
 ///
@@ -281,10 +349,22 @@ unittest
         Place("bar"): OutputPattern("other-constant-value"),
     ];
     CommandResult result = { stdout: "standard output", code: 0 };
-    auto be = aef.apply(result);
+    auto be = aef.apply(BindingElement.init, result);
     assert(be == [
         Place("foo"): new Token("0"),
         Place("bar"): new Token("other-constant-value"),
+    ]);
+}
+
+unittest
+{
+    immutable aef = [
+        Place("buzz"): OutputPattern("$foo"),
+    ];
+    auto be = new BindingElement([Place("foo"): new Token("3")]);
+    auto ret = aef.apply(be, CommandResult.init);
+    assert(ret == [
+        Place("buzz"): new Token("3"),
     ]);
 }
 
@@ -404,7 +484,7 @@ immutable class ShellCommandTransition_: Transition
             {
                 result.stderr = serr.name;
             }
-            return arcExpFun.apply(result);
+            return arcExpFun.apply(be, result);
         }
 
         receive(
@@ -589,12 +669,17 @@ private:
 ///
 Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Logger logger = sharedLog)
 {
+    import core.exception;
     return spawn((in Transition tr, in BindingElement be, Tid tid, shared Logger logger) {
         try
         {
             tr.fire(be, tid, cast()logger);
         }
         catch(Exception e)
+        {
+            send(tid, cast(shared)e);
+        }
+        catch(AssertError e)
         {
             send(tid, cast(shared)e);
         }
