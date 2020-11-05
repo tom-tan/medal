@@ -5,8 +5,10 @@
  */
 module medal.logger;
 
-import std;
-import std.experimental.logger;
+import std.datetime.timezone : TimeZone;
+import std.stdio : File;
+
+public import std.experimental.logger : LogLevel, Logger, sharedLog;
 
 ///
 class JSONLogger: Logger
@@ -14,6 +16,9 @@ class JSONLogger: Logger
     ///
     this(const string fn, const LogLevel lv = LogLevel.all)
     {
+        import std.datetime.systime : Clock;
+        import std.datetime.timezone : SimpleTimeZone;
+
         super(lv);
         this.filename = fn;
         this.file_.open(this.filename, "a");
@@ -25,6 +30,9 @@ class JSONLogger: Logger
     ///
     this(File file, const LogLevel lv = LogLevel.all)
     {
+        import std.datetime.systime : Clock;
+        import std.datetime.timezone : SimpleTimeZone;
+
         super(lv);
         this.file_ = file;
         auto now = Clock.currTime;
@@ -40,6 +48,10 @@ class JSONLogger: Logger
 
     override void writeLogMsg(ref LogEntry payload) @trusted
     {
+        import std.conv : to;
+        import std.exception : ifThrown;
+        import std.json : JSONException, JSONValue, parseJSON;
+
         JSONValue log;
         log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
         log["thread-id"] = payload.threadId.to!string;

@@ -3,17 +3,19 @@
  * Copyright: © 2020 Tomoya Tanjo
  * License: Apache-2.0
  */
-module medal.network;
+module medal.transition.network;
 
-import medal.transition;
-import medal.engine;
+import medal.logger : Logger, sharedLog;
+import medal.transition.core;
 
-import std;
-import std.experimental.logger;
+import std.concurrency : Tid;
+import std.json : JSONValue;
+import std.range : empty;
 
 version(unittest)
 shared static this()
 {
+    import medal.logger : LogLevel;
     sharedLog.logLevel = LogLevel.off;
 }
 
@@ -35,6 +37,11 @@ immutable class InvocationTransition_: Transition
     ///
     override void fire(in BindingElement initBe, Tid networkTid, Logger logger = sharedLog)
     {
+        import medal.engine : Engine;
+        import medal.message : TransitionFailed, TransitionSucceeded;
+
+        import std.concurrency : send;
+
         logger.info(startMsg(initBe));
         scope(failure) logger.critical(failureMsg(initBe, "internal transition failed"));
         auto engine = Engine(transitions, stopGuard);
@@ -54,6 +61,8 @@ immutable class InvocationTransition_: Transition
 private:
     JSONValue startMsg(in BindingElement be)
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "transition";
         ret["event"] = "start";
@@ -65,6 +74,8 @@ private:
     
     JSONValue successMsg(in BindingElement ibe, in BindingElement obe)
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "transition";
         ret["event"] = "end";
@@ -77,6 +88,8 @@ private:
 
     JSONValue failureMsg(in BindingElement be, in string cause = "")
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["evente"] = "end";
         ret["transition-type"] = "network";
@@ -93,6 +106,12 @@ private:
 
 unittest
 {
+    import medal.message : TransitionSucceeded;
+    import medal.transition.shell : ShellCommandTransition;
+
+    import std.concurrency : receive, thisTid;
+    import std.variant : Variant;
+
     immutable aef = [
         Place("bar"): OutputPattern(SpecialPattern.Return),
     ];

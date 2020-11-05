@@ -5,10 +5,11 @@
  */
 module medal.engine;
 
-import medal.transition;
+import medal.logger;
+import medal.message;
+import medal.transition.core;
 
 import std;
-import std.experimental.logger;
 
 ///
 struct EngineWillStop

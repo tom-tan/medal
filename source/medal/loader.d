@@ -5,16 +5,15 @@
  */
 module medal.loader;
 
-import medal.transition;
-import medal.network;
+import medal.transition.core;
 
-import dyaml;
-
-import std;
+import dyaml : Node;
 
 ///
 Transition loadTransition(Node node)
 {
+    import std.exception : enforce;
+
     auto type = (*enforce("type" in node)).as!string;
     switch(type)
     {
@@ -30,6 +29,13 @@ Transition loadTransition(Node node)
 ///
 unittest
 {
+    import dyaml : Loader;
+    import medal.message : TransitionSucceeded;
+    import medal.transition.shell : ShellCommandTransition;
+    import std.concurrency : receiveTimeout, thisTid;
+    import std.datetime : seconds;
+    import std.variant : Variant;
+
     enum inpStr = q"EOS
     name: echo
     type: shell
@@ -57,6 +63,10 @@ in("type" in node)
 in(node["type"].as!string == "shell")
 do
 {
+    import medal.transition.shell : ShellCommandTransition;
+    import std.exception : enforce;
+    import std.range :empty;
+
     auto command = (*enforce("command" in node)).as!string;
     enforce(!command.empty);
     auto name = (*enforce("name" in node)).as!string;
@@ -73,6 +83,13 @@ in("type" in node)
 in(node["type"].as!string == "network")
 do
 {
+    import medal.transition.network : InvocationTransition;
+    import std.algorithm : map;
+    import std.array : array;
+    import std.concurrency : Generator, yield;
+    import std.exception : enforce;
+    import std.range : empty;
+
     auto name = (*enforce("name" in node)).as!string;
     auto trNodes = (*enforce("transitions" in node)).sequence.array;
     auto trs = new Generator!Node({
@@ -92,6 +109,11 @@ do
 ///
 Guard loadGuard(Node node)
 {
+    import std.array : assocArray;
+    import std.concurrency : Generator, yield;
+    import std.exception : assumeUnique, enforce;
+    import std.typecons : tuple, Tuple;
+
     auto pats = new Generator!(Tuple!(Place, InputPattern))({
         foreach(Node n; node)
         {
@@ -106,6 +128,8 @@ Guard loadGuard(Node node)
 ///
 unittest
 {
+    import dyaml : Loader;
+
     enum inpStr = q"EOS
     - place: pl
       pattern: constant-value
@@ -118,6 +142,11 @@ EOS";
 ///
 ArcExpressionFunction loadArcExpressionFunction(Node node)
 {
+    import std.array : assocArray;
+    import std.concurrency : Generator, yield;
+    import std.exception : assumeUnique, enforce;
+    import std.typecons : tuple, Tuple;
+
     auto pats = new Generator!(Tuple!(Place, OutputPattern))({
         foreach(Node n; node)
         {
@@ -132,6 +161,11 @@ ArcExpressionFunction loadArcExpressionFunction(Node node)
 ///
 BindingElement loadBindingElement(Node node)
 {
+    import std.array : assocArray;
+    import std.concurrency : Generator, yield;
+    import std.exception : assumeUnique;
+    import std.typecons : tuple, Tuple;
+
     auto tokenElems = new Generator!(Tuple!(Place, Token))({
         foreach(string pl, string tok; node)
         {

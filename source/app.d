@@ -3,23 +3,30 @@
  * Copyright: © 2020 Tomoya Tanjo
  * License: Apache-2.0
  */
-import std;
-import std.experimental.logger;
-
-import dyaml;
-
-import medal.loader;
-import medal.transition;
-
-import medal.logger;
+import medal.message : TransitionSucceeded;
+import std.json : JSONValue;
 
 int main(string[] args)
 {
+    import dyaml : Loader, Node;
+    import medal.loader : loadBindingElement, loadTransition;
+    import medal.logger : JSONLogger, LogLevel, sharedLog;
+    import medal.message : SignalSent, TransitionFailed;
+    import medal.transition.core : BindingElement, spawnFire;
+    import std.concurrency : receive, thisTid;
+    import std.file : exists;
+    import std.format : format;
+    import std.getopt : config, getopt;
+    import std.range : empty;
+    import std.stdio : stderr;
+    import std.typecons : Rebindable;
+    import std.variant : Variant;
+
     LogLevel lv = LogLevel.info;
     string initFile;
     string logFile;
     auto helpInfo = args.getopt(
-        std.getopt.config.caseSensitive,
+        config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
         "quiet", "Do not print any logs", () { lv = LogLevel.off; },
         "debug", "Enable debug logs", () { lv = LogLevel.trace; },
@@ -36,10 +43,14 @@ int main(string[] args)
 
     if (helpInfo.helpWanted || args.length != 2)
     {
-        immutable baseMessage = format(q"EOS
+        import std.getopt : defaultGetoptPrinter;
+        import std.path : baseName;
+        import std.string : outdent;
+
+        immutable baseMessage = format!(q"EOS
         Medal: A workflow engine based on Petri nets
         Usage: %s [options] <network.yml>
-EOS".outdent[0..$-1], args[0].baseName);
+EOS".outdent[0..$-1])(args[0].baseName);
         defaultGetoptPrinter(baseMessage, helpInfo.options);
         return 0;
     }
@@ -95,6 +106,8 @@ EOS".outdent[0..$-1], args[0].baseName);
 
 JSONValue successMsg(in TransitionSucceeded ts)
 {
+    import std.conv : to;
+
     JSONValue ret;
     ret["sender"] = "medal";
     ret["success"] = true;
