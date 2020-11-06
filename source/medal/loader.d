@@ -58,7 +58,7 @@ EOS";
 }
 
 ///
-Transition loadShellCommandTransition(Node node, Config config = Config.init)
+Transition loadShellCommandTransition(Node node)
 in("type" in node)
 in(node["type"].as!string == "shell")
 do
