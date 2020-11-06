@@ -67,14 +67,14 @@ do
     import std.exception : enforce;
     import std.range :empty;
 
+    auto name = "name" in node ? node["name"].get!string : "";
     auto command = (*enforce("command" in node)).as!string;
     enforce(!command.empty);
-    auto name = (*enforce("name" in node)).as!string;
     auto g = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
     auto aef = "out" in node ? loadArcExpressionFunction(node["out"])
                              : ArcExpressionFunction.init;
-    return new ShellCommandTransition(command, g, aef);
+    return new ShellCommandTransition(name, command, g, aef);
 }
 
 ///
@@ -90,7 +90,7 @@ do
     import std.exception : enforce;
     import std.range : empty;
 
-    auto name = (*enforce("name" in node)).as!string;
+    auto name = "name" in node ? node["name"].get!string : "";
     auto trNodes = (*enforce("transitions" in node)).sequence.array;
     auto trs = new Generator!Node({
         foreach(Node n; node["transitions"])
@@ -103,7 +103,7 @@ do
     auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
-    return new InvocationTransition(g1, g2, trs);
+    return new InvocationTransition(name, g1, g2, trs);
 }
 
 ///

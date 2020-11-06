@@ -25,7 +25,7 @@ alias EngineStopTransition = immutable EngineStopTransition_;
     ///
     this(in Guard g) @nogc nothrow pure
     {
-        super(g, ArcExpressionFunction.init);
+        super("", g, ArcExpressionFunction.init);
     }
 
     ///

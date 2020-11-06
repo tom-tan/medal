@@ -397,12 +397,14 @@ immutable abstract class Transition_
     }
 
     ///
-    this(in Guard g, in ArcExpressionFunction aef) @nogc nothrow pure @safe
+    this(in string n, in Guard g, in ArcExpressionFunction aef) @nogc nothrow pure @safe
     {
+        name = n;
         guard = g;
         arcExpFun = aef;
     }
 
+    string name;
     Guard guard;
     ArcExpressionFunction arcExpFun;
 }

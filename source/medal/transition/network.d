@@ -25,11 +25,11 @@ alias InvocationTransition = immutable InvocationTransition_;
 immutable class InvocationTransition_: Transition
 {
     ///
-    this(in Guard g1, in Guard g2, in Transition[] trs) @nogc nothrow pure @safe
+    this(in string name, in Guard g1, in Guard g2, in Transition[] trs) @nogc nothrow pure @safe
     in(!trs.empty)
     do 
     {
-        super(g1, ArcExpressionFunction.init);
+        super(name, g1, ArcExpressionFunction.init);
         transitions = trs;
         stopGuard = g2;
     }
@@ -68,12 +68,13 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "start";
         ret["transition-type"] = "network";
+        ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = stopGuard.to!(string[string]);
         return ret;
     }
     
-    static JSONValue successMsg(in BindingElement ibe, in BindingElement obe) pure @safe
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe) const pure @safe
     {
         import std.conv : to;
 
@@ -81,6 +82,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "network";
+        ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
         ret["success"] = true;
@@ -94,6 +96,7 @@ private:
         JSONValue ret;
         ret["evente"] = "end";
         ret["transition-type"] = "network";
+        ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = stopGuard.to!(string[string]);
         ret["success"] = false;
@@ -119,12 +122,12 @@ unittest
     immutable g = [
         Place("foo"): InputPattern(SpecialPattern.Any),
     ];
-    auto sct = new ShellCommandTransition("true #{foo}", g, aef);
+    auto sct = new ShellCommandTransition("", "true #{foo}", g, aef);
     Transition[] trs = [sct];
     immutable portGuard = [
         Place("bar"): InputPattern(SpecialPattern.Any),
     ];
-    auto net = new InvocationTransition(g, portGuard, trs);
+    auto net = new InvocationTransition("", g, portGuard, trs);
 
     spawnFire(net, new BindingElement([Place("foo"): new Token("yahoo")]), thisTid);
     receive(

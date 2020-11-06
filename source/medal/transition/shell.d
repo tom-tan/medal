@@ -28,11 +28,11 @@ alias ShellCommandTransition = immutable ShellCommandTransition_;
 immutable class ShellCommandTransition_: Transition
 {
     ///
-    this(string cmd, in Guard guard, in ArcExpressionFunction aef) @nogc nothrow pure @safe
+    this(string name, string cmd, in Guard guard, in ArcExpressionFunction aef) @nogc nothrow pure @safe
     in(!cmd.empty)
     do
     {
-        super(guard, aef);
+        super(name, guard, aef);
         command = cmd;
     }
 
@@ -156,7 +156,7 @@ immutable class ShellCommandTransition_: Transition
         import std.concurrency : receive, thisTid;
         import std.variant : Variant;
 
-        auto sct = new ShellCommandTransition("true", Guard.init,
+        auto sct = new ShellCommandTransition("", "true", Guard.init,
                                               ArcExpressionFunction.init);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
@@ -174,7 +174,7 @@ immutable class ShellCommandTransition_: Transition
         import std.concurrency : receive, thisTid;
         import std.variant : Variant;
 
-        auto sct = new ShellCommandTransition("false", Guard.init,
+        auto sct = new ShellCommandTransition("", "false", Guard.init,
                                               ArcExpressionFunction.init);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
@@ -197,7 +197,7 @@ immutable class ShellCommandTransition_: Transition
         immutable aef = [
             Place("foo"): OutputPattern(SpecialPattern.Return),
         ];
-        auto sct = new ShellCommandTransition("true", Guard.init, aef);
+        auto sct = new ShellCommandTransition("", "true", Guard.init, aef);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
             (TransitionSucceeded ts) {
@@ -217,7 +217,7 @@ immutable class ShellCommandTransition_: Transition
         immutable aef = [
             Place("foo"): OutputPattern(SpecialPattern.Stdout),
         ];
-        auto sct = new ShellCommandTransition("echo bar", Guard.init, aef);
+        auto sct = new ShellCommandTransition("", "echo bar", Guard.init, aef);
         spawnFire(sct, new BindingElement, thisTid);
         receive(
             (TransitionSucceeded ts) {
@@ -239,7 +239,7 @@ immutable class ShellCommandTransition_: Transition
         immutable aef = [
             Place("foo"): OutputPattern(SpecialPattern.Return),
         ];
-        auto sct = new ShellCommandTransition("sleep infinity", Guard.init, aef);
+        auto sct = new ShellCommandTransition("", "sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
@@ -264,7 +264,7 @@ private:
 
     @safe pure unittest
     {
-        auto t = new ShellCommandTransition("echo #{foo}", Guard.init,
+        auto t = new ShellCommandTransition("", "echo #{foo}", Guard.init,
                                             ArcExpressionFunction.init);
         auto be = new BindingElement([Place("foo"): new Token("3")]);
         assert(t.commandWith(be) == "echo 3", t.commandWith(be));
@@ -278,6 +278,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "start";
         ret["transition-type"] = "shell";
+        ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
         ret["command"] = command;
@@ -292,6 +293,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "shell";
+        ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
         ret["command"] = command;
@@ -307,6 +309,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "shell";
+        ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
         ret["command"] = command;
