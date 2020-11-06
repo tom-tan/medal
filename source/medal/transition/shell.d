@@ -119,12 +119,11 @@ immutable class ShellCommandTransition_: Transition
                 }
             },
             (in SignalSent sig) {
-                import core.sys.posix.signal: SIGINT;
                 import std.concurrency : receiveOnly;
                 import std.format : format;
                 import std.process : kill;
 
-                kill(pid, SIGINT);
+                kill(pid);
                 receiveOnly!int;
                 auto msg = format!"interrupted (%s)"(sig.no);
                 logger.info(failureMsg(be, msg));
@@ -132,12 +131,11 @@ immutable class ShellCommandTransition_: Transition
                      TransitionFailed(be, msg));
             },
             (Variant v) {
-                import core.sys.posix.signal: SIGINT;
                 import std.concurrency : receiveOnly;
                 import std.format : format;
                 import std.process : kill;
 
-                kill(pid, SIGINT);
+                kill(pid);
                 receiveOnly!int;
 
                 auto msg = format!"unknown message (%s)"(v);
