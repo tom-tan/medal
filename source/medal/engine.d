@@ -9,7 +9,10 @@ import medal.logger;
 import medal.message;
 import medal.transition.core;
 
-import std;
+import std.algorithm : all, canFind;
+import std.concurrency : Tid;
+import std.json : JSONValue;
+import std.range : byPair, empty;
 
 ///
 struct EngineWillStop
@@ -31,6 +34,8 @@ alias EngineStopTransition = immutable EngineStopTransition_;
     ///
     override void fire(in BindingElement be, Tid networkTid, Logger logger = null) const @trusted
     {
+        import std.concurrency : send;
+
         scope(success) logger.trace(oneShotMsg(be));
         scope(failure) logger.critical(failureMsg(be, "unknown error"));
         send(networkTid, EngineWillStop(be));
@@ -38,6 +43,8 @@ alias EngineStopTransition = immutable EngineStopTransition_;
 
     static JSONValue oneShotMsg(in BindingElement be)
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "transition";
         ret["event"] = "oneshot";
@@ -49,6 +56,8 @@ alias EngineStopTransition = immutable EngineStopTransition_;
 
     static JSONValue failureMsg(in BindingElement be, in string cause)
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "transition";
         ret["event"] = "oneshot-failure";
@@ -66,6 +75,11 @@ struct Engine
     ///
     this(in Transition tr) nothrow pure @trusted
     {
+        import std.algorithm : map;
+        import std.array : assocArray;
+        import std.exception : assumeUnique;
+        import std.typecons : tuple;
+
         auto g = tr.arcExpFun
                    .byKey
                    .map!(p => tuple(p, InputPattern(SpecialPattern.Any)))
@@ -90,6 +104,10 @@ struct Engine
     ///
     BindingElement run(in BindingElement initBe, Logger logger = sharedLog)
     {
+        import std.concurrency : receive, send, thisTid;
+        import std.typecons : Rebindable;
+        import std.variant : Variant;
+
         auto running = true;
         Rebindable!(typeof(return)) ret;
         logger.trace(startMsg(initBe));
@@ -134,6 +152,8 @@ struct Engine
 
     JSONValue recvMsg(in TransitionSucceeded ts) @trusted
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "recv";
@@ -145,6 +165,8 @@ struct Engine
 
     JSONValue recvMsg(in TransitionFailed tf) @trusted
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "recv";
@@ -157,6 +179,8 @@ struct Engine
 
     JSONValue startMsg(in BindingElement be) @trusted
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "start";
@@ -166,6 +190,8 @@ struct Engine
 
     JSONValue stopMsg(in BindingElement be) @trusted
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "end";
@@ -175,6 +201,8 @@ struct Engine
 
     JSONValue fireMsg(in Transition tr, in BindingElement be, in Tid tid) @trusted
     {
+        import std.conv : to;
+
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "fire";
@@ -197,6 +225,9 @@ struct Store
     in(!trs.empty)
     do
     {
+        import std.algorithm : each, filter;
+        import std.range : chain;
+
         foreach(t; trs)
         {
             chain(t.guard.byKey,
@@ -222,6 +253,8 @@ struct Store
     in(be.tokenElements.byPair.all!(pt => state[pt[0]].canFind(pt[1])))
     do
     {
+        import std.algorithm : findSplit;
+
         foreach(p, t; be.tokenElements)
         {
             auto split = state[p].findSplit([t]);
@@ -233,6 +266,7 @@ struct Store
 
     string toString() const pure @safe
     {
+        import std.conv : to;
         return state.to!string;
     }
     const(Token)[][Place] state;
