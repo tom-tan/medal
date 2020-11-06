@@ -5,9 +5,9 @@
  */
 module medal.loader;
 
-import medal.transition.core;
-
 import dyaml : Node;
+
+import medal.transition.core;
 
 ///
 Transition loadTransition(Node node)
@@ -58,7 +58,7 @@ EOS";
 }
 
 ///
-Transition loadShellCommandTransition(Node node)
+Transition loadShellCommandTransition(Node node, Config config = Config.init)
 in("type" in node)
 in(node["type"].as!string == "shell")
 do
@@ -90,6 +90,12 @@ do
     import std.exception : enforce;
     import std.range : empty;
 
+    Config con;
+    if (auto c = "configuration" in node)
+    {
+        con = loadConfig(*c);
+    }
+
     auto name = "name" in node ? node["name"].get!string : "";
     auto trNodes = (*enforce("transitions" in node)).sequence.array;
     auto trs = new Generator!Node({
@@ -103,7 +109,7 @@ do
     auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
-    return new InvocationTransition(name, g1, g2, trs);
+    return new InvocationTransition(name, g1, g2, trs, con);
 }
 
 ///

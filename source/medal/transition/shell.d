@@ -6,7 +6,6 @@
 module medal.transition.shell;
 
 import medal.logger : Logger, sharedLog;
-//import medal.message;
 import medal.transition.core;
 
 import std.concurrency : Tid;
