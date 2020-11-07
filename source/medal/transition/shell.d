@@ -80,7 +80,7 @@ immutable class ShellCommandTransition_: Transition
         
         auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
 
-        auto cmd = commandWith(be);
+        auto cmd = commandWith(command, be);
         auto pid = spawnShell(cmd, stdin, sout, serr);
 
 		spawn((shared Pid pid) {
@@ -274,7 +274,7 @@ immutable class ShellCommandTransition_: Transition
         assert(received);
     }
 private:
-    string commandWith(in BindingElement be) const pure @safe
+    static string commandWith(in string cmd, in BindingElement be) pure @safe
     {
         import std.algorithm : fold;
         import std.array : byPair, replace;
@@ -282,15 +282,13 @@ private:
         import std.format : format;
         return be.tokenElements.byPair.fold!((acc, p) {
             return acc.replace(format!"#{%s}"(p.key), p.value.to!string);
-        })(command);
+        })(cmd);
     }
 
     @safe pure unittest
     {
-        auto t = new ShellCommandTransition("", "echo #{foo}", Guard.init,
-                                            ArcExpressionFunction.init);
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(t.commandWith(be) == "echo 3", t.commandWith(be));
+        assert(commandWith("echo #{foo}", be) == "echo 3", commandWith("echo #{foo}", be));
     }
 
     JSONValue startMsg(in BindingElement be, in Config con) const pure @safe
@@ -305,7 +303,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = commandWith(be);
+        ret["command"] = commandWith(command, be);
         return ret;
     }
     
@@ -321,7 +319,7 @@ private:
         ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
-        ret["command"] = commandWith(ibe);
+        ret["command"] = commandWith(command, ibe);
         ret["success"] = true;
         return ret;
     }
@@ -338,7 +336,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = commandWith(be);
+        ret["command"] = commandWith(command, be);
         ret["success"] = false;
         ret["cause"] = cause;
         return ret;
