@@ -290,7 +290,7 @@ private:
                 auto rest = split[1];
                 if (rest.empty)
                 {
-                    break;
+                    assert(false, "Invalid escape `%` at the end of string");
                 }
 
                 switch(rest[0])
@@ -319,8 +319,7 @@ private:
                     break;
                 default:
                     import std.format : format;
-                    auto invalid = rest.length <= 1 ? rest : rest[0..2];
-                    assert(false, format!"Cannot escape `%%%s`"(invalid));
+                    assert(false, format!"Cannot escape `%%%s`"(rest[0]));
                 }
             }
             else
