@@ -164,7 +164,7 @@ struct Engine
         ret["tag"] = con.tag;
         ret["elems"] = ts.tokenElements.tokenElements.to!(string[string]);
         ret["success"] = true;
-        ret["thread-id"] = (cast()ts.tid).to!string;
+        ret["thread-id"] = (cast()ts.tid).to!string[4..$-1];
         return ret;
     }
 
@@ -178,7 +178,7 @@ struct Engine
         ret["tag"] = con.tag;
         ret["elems"] = tf.tokenElements.tokenElements.to!(string[string]);
         ret["success"] = false;
-        ret["thread-id"] = (cast()tf.tid).to!string;
+        ret["thread-id"] = (cast()tf.tid).to!string[4..$-1];
         ret["cause"] = tf.cause;
         return ret;
     }
@@ -217,7 +217,7 @@ struct Engine
         ret["tag"] = con.tag;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["transition"] = tr.name;
-        ret["thread-id"] = (cast()tid).to!string;
+        ret["thread-id"] = (cast()tid).to!string[4..$-1];
         return ret;
     }
 
