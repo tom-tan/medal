@@ -54,7 +54,7 @@ public import std.experimental.logger : LogLevel, Logger, sharedLog;
 
         JSONValue log;
         log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
-        log["thread-id"] = () @trusted { return payload.threadId.to!string; }();
+        log["thread-id"] = () @trusted { return payload.threadId.to!string[4..$-1]; }();
         log["log-level"] = payload.logLevel.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;
