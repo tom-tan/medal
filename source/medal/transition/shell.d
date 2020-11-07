@@ -43,8 +43,8 @@ immutable class ShellCommandTransition_: Transition
         import std.stdio : File, stdin;
         import std.variant : Variant;
 
-        logger.info(startMsg(be));
-        scope(failure) logger.critical(failureMsg(be, "unknown error"));
+        logger.info(startMsg(be, con));
+        scope(failure) logger.critical(failureMsg(be, con, "unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
         auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
@@ -118,14 +118,14 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = result2BE(code);
                 if (needReturn || code == 0)
                 {
-                    logger.info(successMsg(be, ret));
+                    logger.info(successMsg(be, ret, con));
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
                 else
                 {
                     auto msg = "command returned with non-zero";
-                    logger.info(failureMsg(be, msg));
+                    logger.info(failureMsg(be, con, msg));
                     send(networkTid,
                          TransitionFailed(be, msg));
                 }
@@ -138,7 +138,7 @@ immutable class ShellCommandTransition_: Transition
                 kill(pid);
                 receiveOnly!int;
                 auto msg = format!"interrupted (%s)"(sig.no);
-                logger.info(failureMsg(be, msg));
+                logger.info(failureMsg(be, con, msg));
                 send(networkTid,
                      TransitionFailed(be, msg));
             },
@@ -151,7 +151,7 @@ immutable class ShellCommandTransition_: Transition
                 receiveOnly!int;
 
                 auto msg = format!"unknown message (%s)"(v);
-                logger.critical(failureMsg(be, msg));
+                logger.critical(failureMsg(be, con, msg));
                 send(networkTid, TransitionFailed(be, msg));
             }
         );
@@ -289,7 +289,7 @@ private:
         assert(t.commandWith(be) == "echo 3", t.commandWith(be));
     }
 
-    JSONValue startMsg(in BindingElement be) const pure @safe
+    JSONValue startMsg(in BindingElement be, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -297,6 +297,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "start";
         ret["transition-type"] = "shell";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
@@ -304,7 +305,7 @@ private:
         return ret;
     }
     
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe) const pure @safe
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -312,6 +313,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "shell";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
@@ -320,7 +322,7 @@ private:
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cause) const pure @safe
+    JSONValue failureMsg(in BindingElement be, in Config con, in string cause) const pure @safe
     {
         import std.conv : to;
 
@@ -328,6 +330,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "shell";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);

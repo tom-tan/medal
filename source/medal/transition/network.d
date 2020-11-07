@@ -52,24 +52,24 @@ protected:
             tmpdir: either(con.tmpdir, config.tmpdir),
         };
 
-        logger.info(startMsg(initBe));
-        scope(failure) logger.critical(failureMsg(initBe, "internal transition failed"));
+        logger.info(startMsg(initBe, con));
+        scope(failure) logger.critical(failureMsg(initBe, con, "internal transition failed"));
         auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe, engineConfig, logger);
         if (retBe)
         {
-            logger.info(successMsg(initBe, retBe));
+            logger.info(successMsg(initBe, retBe, con));
             send(networkTid, TransitionSucceeded(retBe));
         }
         else
         {
-            logger.info(failureMsg(initBe, "internal transition failed"));
+            logger.info(failureMsg(initBe, con, "internal transition failed"));
             send(networkTid, TransitionFailed(initBe));
         }
     }
 
 private:
-    JSONValue startMsg(in BindingElement be) const pure @safe
+    JSONValue startMsg(in BindingElement be, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -77,13 +77,14 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "start";
         ret["transition-type"] = "network";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = stopGuard.to!(string[string]);
         return ret;
     }
     
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe) const pure @safe
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -91,6 +92,7 @@ private:
         ret["sender"] = "transition";
         ret["event"] = "end";
         ret["transition-type"] = "network";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
@@ -98,13 +100,14 @@ private:
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cause = "") const pure @safe
+    JSONValue failureMsg(in BindingElement be, in Config con, in string cause = "") const pure @safe
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["evente"] = "end";
         ret["transition-type"] = "network";
+        ret["tag"] = con.tag;
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = stopGuard.to!(string[string]);

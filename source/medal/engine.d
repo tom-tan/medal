@@ -27,7 +27,7 @@ struct EngineWillStop
     ///
     this(in Guard g) @nogc nothrow pure
     {
-        super("", g, ArcExpressionFunction.init);
+        super("engine-stop", g, ArcExpressionFunction.init);
     }
 
     ///
@@ -35,12 +35,12 @@ struct EngineWillStop
     {
         import std.concurrency : send;
 
-        scope(success) logger.trace(oneShotMsg(be));
-        scope(failure) logger.critical(failureMsg(be, "unknown error"));
+        scope(success) logger.trace(oneShotMsg(be, config));
+        scope(failure) logger.critical(failureMsg(be, config, "unknown error"));
         send(networkTid, EngineWillStop(be));
     }
 
-    static JSONValue oneShotMsg(in BindingElement be)
+    static JSONValue oneShotMsg(in BindingElement be, in Config con)
     {
         import std.conv : to;
 
@@ -48,12 +48,13 @@ struct EngineWillStop
         ret["sender"] = "transition";
         ret["event"] = "oneshot";
         ret["transition-type"] = "engine-stop";
+        ret["tag"] = con.tag;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = be.tokenElements.to!(string[string]);
         return ret;
     }
 
-    static JSONValue failureMsg(in BindingElement be, in string cause)
+    static JSONValue failureMsg(in BindingElement be, in Config con, in string cause)
     {
         import std.conv : to;
 
@@ -61,6 +62,7 @@ struct EngineWillStop
         ret["sender"] = "transition";
         ret["event"] = "oneshot-failure";
         ret["transition-type"] = "engine-stop";
+        ret["tag"] = con.tag;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = be.tokenElements.to!(string[string]);
         ret["cause"] = cause;
@@ -112,13 +114,13 @@ struct Engine
 
         auto running = true;
         Rebindable!(typeof(return)) ret;
-        logger.trace(startMsg(initBe));
+        logger.trace(startMsg(initBe, config));
         send(thisTid, TransitionSucceeded(initBe));
         while(running)
         {
             receive(
                 (TransitionSucceeded ts) {
-                    logger.trace(recvMsg(ts));
+                    logger.trace(recvMsg(ts, config));
                     store.put(ts.tokenElements);
                     foreach(tr; rule.transitions)
                     {
@@ -126,12 +128,12 @@ struct Engine
                         {
                             store.remove(nextBe);
                             auto tid = spawnFire(tr, nextBe, thisTid, config, logger);
-                            logger.trace(fireMsg(tr, nextBe, tid));
+                            logger.trace(fireMsg(tr, nextBe, tid, config));
                         }
                     }
                 },
                 (TransitionFailed tf) {
-                    logger.trace(recvMsg(tf));
+                    logger.trace(recvMsg(tf, config));
                     running = false;
                 },
                 (in SignalSent sig) {
@@ -148,30 +150,32 @@ struct Engine
                 },
             );
         }
-        logger.trace(stopMsg(ret));
+        logger.trace(stopMsg(ret, config));
         return ret;
     }
 
-    JSONValue recvMsg(in TransitionSucceeded ts) @trusted
+    JSONValue recvMsg(in TransitionSucceeded ts, in Config con) @trusted
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "recv";
+        ret["tag"] = con.tag;
         ret["elems"] = ts.tokenElements.tokenElements.to!(string[string]);
         ret["success"] = true;
         ret["thread-id"] = (cast()ts.tid).to!string;
         return ret;
     }
 
-    JSONValue recvMsg(in TransitionFailed tf) @trusted
+    JSONValue recvMsg(in TransitionFailed tf, in Config con) @trusted
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "recv";
+        ret["tag"] = con.tag;
         ret["elems"] = tf.tokenElements.tokenElements.to!(string[string]);
         ret["success"] = false;
         ret["thread-id"] = (cast()tf.tid).to!string;
@@ -179,37 +183,40 @@ struct Engine
         return ret;
     }
 
-    JSONValue startMsg(in BindingElement be) @trusted
+    JSONValue startMsg(in BindingElement be, in Config con) @trusted
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "start";
+        ret["tag"] = con.tag;
         ret["in"] = be.tokenElements.to!(string[string]);
         return ret;
     }
 
-    JSONValue stopMsg(in BindingElement be) @trusted
+    JSONValue stopMsg(in BindingElement be, in Config con) @trusted
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "end";
+        ret["tag"] = con.tag;
         ret["out"] = be.tokenElements.to!(string[string]);
         return ret;
     }
 
-    JSONValue fireMsg(in Transition tr, in BindingElement be, in Tid tid) @trusted
+    JSONValue fireMsg(in Transition tr, in BindingElement be, in Tid tid, in Config con) @trusted
     {
         import std.conv : to;
 
         JSONValue ret;
         ret["sender"] = "engine";
         ret["event"] = "fire";
+        ret["tag"] = con.tag;
         ret["in"] = be.tokenElements.to!(string[string]);
-        //ret["transition"] = tr.to!string;
+        ret["transition"] = tr.name;
         ret["thread-id"] = (cast()tid).to!string;
         return ret;
     }
