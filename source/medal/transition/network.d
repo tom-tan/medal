@@ -20,8 +20,6 @@ shared static this()
 }
 
 ///
-alias InvocationTransition = immutable InvocationTransition_;
-///
 immutable class InvocationTransition_: Transition
 {
     ///
@@ -107,6 +105,9 @@ private:
     Transition[] transitions;
     Guard stopGuard;
 }
+
+/// ditto
+alias InvocationTransition = immutable InvocationTransition_;
 
 unittest
 {

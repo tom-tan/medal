@@ -21,8 +21,6 @@ struct EngineWillStop
 }
 
 ///
-alias EngineStopTransition = immutable EngineStopTransition_;
-///
 @safe immutable class EngineStopTransition_: Transition
 {
     ///
@@ -68,6 +66,9 @@ alias EngineStopTransition = immutable EngineStopTransition_;
         return ret;
     }
 }
+
+/// ditto
+alias EngineStopTransition = immutable EngineStopTransition_;
 
 ///
 struct Engine

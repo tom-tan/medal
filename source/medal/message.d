@@ -33,6 +33,7 @@ private:
 ///
 struct TransitionSucceeded
 {
+    ///
     this(in BindingElement tokenElems)
     {
         tokenElements = tokenElems;
@@ -46,6 +47,7 @@ struct TransitionSucceeded
 ///
 struct TransitionFailed
 {
+    ///
     this(in BindingElement tokenElems, in string c = "")
     {
         tokenElements = tokenElems;

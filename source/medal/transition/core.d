@@ -83,7 +83,6 @@ shared static this()
 // std.concurrency cannot send/receive immutable AA
 // https://issues.dlang.org/show_bug.cgi?id=13930 (solved by Issue 21296)
 //alias BindingElement = immutable Token[Place];
-alias BindingElement = immutable BindingElement_;
 ///
 @safe immutable class BindingElement_
 {
@@ -122,6 +121,8 @@ alias BindingElement = immutable BindingElement_;
     Token[Place] tokenElements;
 }
 
+/// ditto
+alias BindingElement = immutable BindingElement_;
 
 ///
 enum SpecialPattern: string
@@ -358,8 +359,6 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 alias Guard = immutable InputPattern[Place];
 
 ///
-alias Transition = immutable Transition_;
-///
 immutable abstract class Transition_
 {
     ///
@@ -408,6 +407,9 @@ immutable abstract class Transition_
     Guard guard;
     ArcExpressionFunction arcExpFun;
 }
+
+/// ditto
+alias Transition = immutable Transition_;
 
 ///
 Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Logger logger = sharedLog)

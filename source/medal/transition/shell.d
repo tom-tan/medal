@@ -19,10 +19,6 @@ shared static this()
     sharedLog.logLevel = LogLevel.off;
 }
 
-
-///
-alias ShellCommandTransition = immutable ShellCommandTransition_;
-
 ///
 immutable class ShellCommandTransition_: Transition
 {
@@ -324,3 +320,6 @@ private:
 
     string command;
 }
+
+/// ditto
+alias ShellCommandTransition = immutable ShellCommandTransition_;
