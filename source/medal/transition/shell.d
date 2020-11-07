@@ -301,7 +301,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = command;
+        ret["command"] = commandWith(be);
         return ret;
     }
     
@@ -317,7 +317,7 @@ private:
         ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
-        ret["command"] = command;
+        ret["command"] = commandWith(ibe);
         ret["success"] = true;
         return ret;
     }
@@ -334,7 +334,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = command;
+        ret["command"] = commandWith(be);
         ret["success"] = false;
         ret["cause"] = cause;
         return ret;
