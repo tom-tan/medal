@@ -1,0 +1,24 @@
+type: network
+name: use standard output
+out:
+  - place: end
+    pattern: _
+transitions:
+  - name: echo
+    type: shell
+    in:
+      - place: msg
+        pattern: _
+    out:
+      - place: out
+        pattern: STDOUT
+    command: "echo #{msg}"
+  - name: cat
+    type: shell
+    in:
+      - place: out
+        pattern: _
+    out:
+      - place: end
+        pattern: RETURN
+    command: "cat #{out}"

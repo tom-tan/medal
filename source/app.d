@@ -9,6 +9,7 @@ import std.json : JSONValue;
 int main(string[] args)
 {
     import dyaml : Loader, Node;
+    import medal.config : Config;
     import medal.loader : loadBindingElement, loadTransition;
     import medal.logger : JSONLogger, LogLevel, sharedLog;
     import medal.message : SignalSent, TransitionFailed;
@@ -80,7 +81,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
 
-    auto mainTid = spawnFire(tr, initBe, thisTid, sharedLog);
+    auto mainTid = spawnFire(tr, initBe, thisTid, Config.init, sharedLog);
 
     bool success;
     receive(

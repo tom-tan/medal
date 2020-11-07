@@ -7,6 +7,7 @@ module medal.loader;
 
 import dyaml : Node;
 
+import medal.config : Config;
 import medal.transition.core;
 
 ///
@@ -89,6 +90,8 @@ do
     import std.exception : enforce;
     import std.range : empty;
 
+    auto con = "configuration" in node ? loadConfig(node) : Config.init;
+
     auto name = "name" in node ? node["name"].get!string : "";
     auto trs = (*enforce("transitions" in node))
                     .sequence
@@ -99,7 +102,7 @@ do
     auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
-    return new InvocationTransition(name, g1, g2, trs);
+    return new InvocationTransition(name, g1, g2, trs, con);
 }
 
 ///
@@ -167,4 +170,40 @@ BindingElement loadBindingElement(Node node) @safe
     return new BindingElement(() @trusted { 
         return tokenElems.assumeUnique; 
     }());
+}
+
+///
+Config loadConfig(Node node) @safe
+in("configuration" in node)
+{
+    import std.exception : assumeUnique;
+
+    auto n = node["configuration"];
+    string tag;
+    if (auto t = "tag" in n)
+    {
+        tag = t.get!string;
+    }
+
+    string[string] environment;
+    if (auto env = "environments" in n)
+    {
+        import std.algorithm : map;
+        import std.array : assocArray;
+        import std.exception : enforce;
+        import std.typecons : tuple;
+
+        environment = env.sequence.map!((Node nn) {
+            return tuple((*enforce("name" in nn)).get!string,
+                         (*enforce("value" in nn)).get!string);
+        }).assocArray;
+    }
+
+    typeof(return) ret = { 
+        tag: tag, 
+        environment: () @trusted {
+            return environment.assumeUnique;
+        }(),
+    };
+    return ret;
 }

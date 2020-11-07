@@ -5,6 +5,7 @@
  */
 module medal.transition.core;
 
+import medal.config : Config;
 import medal.logger : Logger, sharedLog;
 
 import std.concurrency : Tid;
@@ -362,7 +363,7 @@ alias Guard = immutable InputPattern[Place];
 immutable abstract class Transition_
 {
     ///
-    protected abstract void fire(in BindingElement be, Tid networkTid, Logger logger);
+    protected abstract void fire(in BindingElement be, Tid networkTid, Config con, Logger logger);
 
     ///
     BindingElement fireable(Store)(in Store s) nothrow pure
@@ -412,15 +413,15 @@ immutable abstract class Transition_
 alias Transition = immutable Transition_;
 
 ///
-Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Logger logger = sharedLog)
+Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Config.init, Logger logger = sharedLog)
 {
     import core.exception : AssertError;
     import std.concurrency : send, spawn;
 
-    return spawn((in Transition tr, in BindingElement be, Tid tid, shared Logger logger) {
+    return spawn((in Transition tr, in BindingElement be, Tid tid, Config con, shared Logger logger) {
         try
         {
-            tr.fire(be, tid, cast()logger);
+            tr.fire(be, tid, con, cast()logger);
         }
         catch(Exception e)
         {
@@ -430,5 +431,5 @@ Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Logger logger = s
         {
             send(tid, cast(shared)e);
         }
-    }, tr, be, tid, cast(shared)logger);
+    }, tr, be, tid, con, cast(shared)logger);
 }

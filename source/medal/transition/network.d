@@ -5,6 +5,7 @@
  */
 module medal.transition.network;
 
+import medal.config : Config;
 import medal.logger : Logger, sharedLog;
 import medal.transition.core;
 
@@ -23,18 +24,20 @@ shared static this()
 immutable class InvocationTransition_: Transition
 {
     ///
-    this(in string name, in Guard g1, in Guard g2, in Transition[] trs) @nogc nothrow pure @safe
+    this(in string name, in Guard g1, in Guard g2, in Transition[] trs,
+         immutable Config con = Config.init) @nogc nothrow pure @safe
     in(!trs.empty)
     do 
     {
         super(name, g1, ArcExpressionFunction.init);
         transitions = trs;
         stopGuard = g2;
+        config = con;
     }
 
 protected:
     ///
-    override void fire(in BindingElement initBe, Tid networkTid, Logger logger = sharedLog)
+    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
     {
         import medal.engine : Engine;
         import medal.message : TransitionFailed, TransitionSucceeded;
@@ -104,6 +107,7 @@ private:
 
     Transition[] transitions;
     Guard stopGuard;
+    Config config;
 }
 
 /// ditto

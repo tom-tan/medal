@@ -5,6 +5,7 @@
  */
 module medal.engine;
 
+import medal.config : Config;
 import medal.logger;
 import medal.message;
 import medal.transition.core;
@@ -30,7 +31,7 @@ struct EngineWillStop
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid, Logger logger = null) const @trusted
+    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = null) const @trusted
     {
         import std.concurrency : send;
 
@@ -103,7 +104,7 @@ struct Engine
     }
 
     ///
-    BindingElement run(in BindingElement initBe, Logger logger = sharedLog)
+    BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
         import std.concurrency : receive, send, thisTid;
         import std.typecons : Rebindable;
@@ -124,7 +125,7 @@ struct Engine
                         if (auto nextBe = tr.fireable(store))
                         {
                             store.remove(nextBe);
-                            auto tid = spawnFire(tr, nextBe, thisTid, logger);
+                            auto tid = spawnFire(tr, nextBe, thisTid, config, logger);
                             logger.trace(fireMsg(tr, nextBe, tid));
                         }
                     }

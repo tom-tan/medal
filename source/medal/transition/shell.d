@@ -5,6 +5,7 @@
  */
 module medal.transition.shell;
 
+import medal.config : Config;
 import medal.logger : Logger, sharedLog;
 import medal.transition.core;
 
@@ -32,42 +33,50 @@ immutable class ShellCommandTransition_: Transition
     }
 
     ///
-    protected override void fire(in BindingElement be, Tid networkTid, Logger logger = sharedLog)
+    protected override void fire(in BindingElement be, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
     {
         import medal.message : SignalSent, TransitionFailed, TransitionSucceeded;
-        import std.algorithm : canFind;
+        import std.algorithm : canFind, either;
         import std.concurrency : receive, send, spawn;
-        import std.file : remove;
+        import std.file : getcwd, remove;
         import std.process : Pid, spawnShell, tryWait;
-        import std.stdio : File, stderr, stdin, stdout;
+        import std.stdio : File, stdin;
         import std.variant : Variant;
 
         logger.info(startMsg(be));
         scope(failure) logger.critical(failureMsg(be, "unknown error"));
 
+        auto tmpdir = either(con.tmpdir, getcwd);
         auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
+        File sout;
         if (needStdout)
         {
-            auto msg = "stdout is not yet supported";
-            logger.info(failureMsg(be, msg));
-            send(networkTid, TransitionFailed(be, msg));
-            return;
+            import std.path : buildPath;
+            import std.uuid : randomUUID;
+
+            auto fname = randomUUID.toString;
+            sout = File(buildPath(tmpdir, fname), "w");
         }
-        // TODO: output file name should be random
-        auto sout = needStdout ? File("stdout", "w") : stdout;
-        scope(exit) if (needStdout) sout.name.remove;
+        else
+        {
+            import std.stdio : stdout;
+            sout = stdout;
+        }
 
         auto needStderr = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stderr);
+        File serr;
         if (needStderr)
         {
-            auto msg = "stderr is not yet supported";
-            logger.info(failureMsg(be, msg));
-            send(networkTid, TransitionFailed(be, msg));
-            return;
+            import std.path : buildPath;
+            import std.uuid : randomUUID;
+            auto fname = randomUUID.toString;
+            serr = File(buildPath(tmpdir, fname), "w");
         }
-        // TODO: output file name should be random
-        auto serr = needStderr ? File("stderr", "w") : stderr;
-        scope(exit) if (needStderr) serr.name.remove;
+        else
+        {
+            import std.stdio : stderr;
+            serr = stderr;
+        }
         
         auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
 
@@ -207,7 +216,6 @@ immutable class ShellCommandTransition_: Transition
         );
     }
 
-    version(none)
     unittest
     {
         import medal.message : TransitionSucceeded;
@@ -221,9 +229,20 @@ immutable class ShellCommandTransition_: Transition
         spawnFire(sct, new BindingElement, thisTid);
         receive(
             (TransitionSucceeded ts) {
-                assert(ts.tokenElements == [Place("foo"): new Token("bar")]);
+                if (auto token = Place("foo") in ts.tokenElements.tokenElements)
+                {
+                    auto name = token.value;
+                    import std.file : exists, readText, remove;
+                    assert(name.exists);
+                    scope(exit) name.remove;
+                    assert(name.readText == "bar\n");
+                }
+                else
+                {
+                    assert(false);
+                }
             },
-            (Variant v) { assert(false, v.to!string); },
+            (Variant v) { assert(false); },
         );
     }
 
