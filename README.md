@@ -22,17 +22,16 @@ Usage: ./bin/medal [options] <network.yml>
 -h  --help This help information.
 ```
 
-See `examples` directory:
-- [`examples/network.yml`](https://github.com/tom-tan/medal/blob/master/examples/network.yml) for input network.
-- [`examples/network-input.yml`](https://github.com/tom-tan/medal/blob/master/examples/network-input.yml) for initial marking.
-
-- [`examples/transition.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition.yml) for input transitions.
-- [`examples/transition-input.yml`](https://github.com/tom-tan/medal/blob/master/examples/transition-input.yml) for initial marking.
+The `examples` directory shows several examples.
+Each directory contains `network.yml` for a network and `init.yml` for initial marking.
+- `transition` shows how to write a transition
+- `network` shows how to write a network
+- `passthrough` shows how to pass a token in a place to other places
 
 You can visualize a given network by using `net2dot.d` with the following commands:
 
 ```console
-$ ./net2dot.d examples/network.yml output.dot # dub is required
+$ ./net2dot.d examples/network/network.yml output.dot # dub is required
 $ dot -T pdf output.dot -o network.pdf # Graphviz is required
 ```
 
