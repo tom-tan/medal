@@ -15,7 +15,7 @@ int main(string[] args)
     import medal.message : SignalSent, TransitionFailed;
     import medal.transition.core : BindingElement, spawnFire;
     import std.concurrency : receive, thisTid;
-    import std.file : exists;
+    import std.file : exists, mkdirRecurse;
     import std.format : format;
     import std.getopt : config, getopt;
     import std.range : empty;
@@ -26,21 +26,18 @@ int main(string[] args)
     LogLevel lv = LogLevel.info;
     string initFile;
     string logFile;
+    string tmpdir;
+    bool leaveTmpdir;
+
     auto helpInfo = args.getopt(
         config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
         "quiet", "Do not print any logs", () { lv = LogLevel.off; },
         "debug", "Enable debug logs", () { lv = LogLevel.trace; },
         "log", "Specify log destination (default: stderr)", &logFile,
+        "tmpdir", "Specify temporary directory", &tmpdir,
+        "leave-tmpdir", "Leave temporary directory after execution", &leaveTmpdir,
     );
-    if (logFile.empty)
-    {
-        sharedLog = new JSONLogger(stderr, lv);
-    }
-    else
-    {
-        sharedLog = new JSONLogger(logFile, lv);
-    }
 
     if (helpInfo.helpWanted || args.length != 2)
     {
@@ -55,6 +52,46 @@ EOS".outdent[0..$-1])(args[0].baseName);
         defaultGetoptPrinter(baseMessage, helpInfo.options);
         return 0;
     }
+
+    if (logFile.empty)
+    {
+        sharedLog = new JSONLogger(stderr, lv);
+    }
+    else
+    {
+        sharedLog = new JSONLogger(logFile, lv);
+    }
+
+    if (tmpdir.empty)
+    {
+        import std.file : tempDir;
+        import std.path : buildPath;
+        import std.process : thisProcessID;
+
+        tmpdir = buildPath(tempDir, format!"medal-%s"(thisProcessID));
+        if (tmpdir.exists)
+        {
+            sharedLog.critical(failureMsg("Temporary directory already exists: "~tmpdir));
+            return 1;
+        }
+    }
+    else
+    {
+        if (tmpdir.exists)
+        {
+            sharedLog.critical(failureMsg("Specified temporary directory already exists: "~tmpdir));
+            return 1;
+        }
+    }
+    mkdirRecurse(tmpdir);
+    scope(exit) {
+        if (!leaveTmpdir)
+        {
+            import std.file : rmdirRecurse;
+            rmdirRecurse(tmpdir);
+        }
+    }
+    Config con = { tmpdir: tmpdir };
 
     auto netFile = args[1];
     if (!netFile.exists)
@@ -87,7 +124,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
 
-    auto mainTid = spawnFire(tr, initBe, thisTid, Config.init, sharedLog);
+    auto mainTid = spawnFire(tr, initBe, thisTid, con, sharedLog);
 
     bool success;
     receive(

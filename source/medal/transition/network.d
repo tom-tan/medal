@@ -42,12 +42,20 @@ protected:
         import medal.engine : Engine;
         import medal.message : TransitionFailed, TransitionSucceeded;
 
+        import std.algorithm : either;
         import std.concurrency : send;
+
+        Config engineConfig = {
+            tag: either(con.tag, config.tag),
+            environment: config.environment,
+            workdir: con.workdir,
+            tmpdir: either(con.tmpdir, config.tmpdir),
+        };
 
         logger.info(startMsg(initBe));
         scope(failure) logger.critical(failureMsg(initBe, "internal transition failed"));
         auto engine = Engine(transitions, stopGuard);
-        auto retBe = engine.run(initBe);
+        auto retBe = engine.run(initBe, engineConfig, logger);
         if (retBe)
         {
             logger.info(successMsg(initBe, retBe));
