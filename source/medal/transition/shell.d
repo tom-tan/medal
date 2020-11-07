@@ -276,19 +276,79 @@ immutable class ShellCommandTransition_: Transition
 private:
     static string commandWith(in string cmd, in BindingElement be) pure @safe
     {
-        import std.algorithm : fold;
-        import std.array : byPair, replace;
+        import std.algorithm : findSplitAfter;
         import std.conv : to;
-        import std.format : format;
-        return be.tokenElements.byPair.fold!((acc, p) {
-            return acc.replace(format!"#{%s}"(p.key), p.value.to!string);
-        })(cmd);
+
+        auto aa = be.tokenElements.to!(string[string]);
+        string str = cmd;
+        string resulted;
+        do
+        {
+            if (auto split = str.findSplitAfter("%"))
+            {
+                resulted ~= split[0][0..$-1];
+                auto rest = split[1];
+                if (rest.empty)
+                {
+                    break;
+                }
+
+                switch(rest[0])
+                {
+                case '%':
+                    resulted ~= "%";
+                    str = rest[1..$];
+                    break;
+                case '(':
+                    if (auto sp = rest[1..$].findSplitAfter(")"))
+                    {
+                        if (auto val = sp[0][0..$-1] in aa)
+                        {
+                            resulted ~= *val;
+                            str = sp[1][0..$];
+                        }
+                        else
+                        {
+                            assert(false, "Invalid token: "~sp[0][0..$-1]);
+                        }
+                    }
+                    else
+                    {
+                        assert(false, "No corresponding close paren");
+                    }
+                    break;
+                default:
+                    import std.format : format;
+                    auto invalid = rest.length <= 1 ? rest : rest[0..2];
+                    assert(false, format!"Cannot escape `%%%s`"(invalid));
+                }
+            }
+            else
+            {
+                resulted ~= str;
+                break;
+            }
+        }
+        while (true);
+        return resulted;
     }
 
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo #{foo}", be) == "echo 3", commandWith("echo #{foo}", be));
+        assert(commandWith("echo %(foo)", be) == "echo 3", commandWith(r"echo %(foo)", be));
+    }
+
+    @safe pure unittest
+    {
+        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        assert(commandWith("echo %%(foo)", be) == "echo %(foo)", commandWith("echo %%(foo)", be));
+    }
+
+    @safe pure unittest
+    {
+        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        assert(commandWith("echo %%%(foo)", be) == "echo %3", commandWith(r"echo %%%(foo)", be));
     }
 
     JSONValue startMsg(in BindingElement be, in Config con) const pure @safe
