@@ -1,5 +1,12 @@
 name: pass-through
 type: network
+in:
+  - place: alloc_state
+    pattern: not-started
+  - place: exec_state
+    pattern: not-started
+  - place: dealloc_state
+    pattern: not-started
 out:
   - place: dealloc_state
     pattern: done

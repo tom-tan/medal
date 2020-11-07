@@ -81,6 +81,12 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
 
+    if (!tr.fireable(initBe))
+    {
+        sharedLog.critical(failureMsg("Initial marking does not match the guard of the network"));
+        return 1;
+    }
+
     auto mainTid = spawnFire(tr, initBe, thisTid, Config.init, sharedLog);
 
     bool success;

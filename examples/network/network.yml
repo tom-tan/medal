@@ -1,5 +1,8 @@
 name: ping-pong
 type: network
+in:
+  - place: foo
+    pattern: 0
 out:
   - place: foo
     pattern: exit

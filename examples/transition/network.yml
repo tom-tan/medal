@@ -2,7 +2,7 @@ name: echo
 type: shell
 in:
   - place: message
-    pattern: Any
+    pattern: _
 out:
   - place: return
     pattern: RETURN

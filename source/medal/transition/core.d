@@ -396,6 +396,27 @@ immutable abstract class Transition_
         return new BindingElement(tokenElems.assumeUnique); // unsafe
     }
 
+    final BindingElement fireable(in BindingElement be) @nogc nothrow pure @safe
+    {
+        import std.array : byPair;
+
+        foreach(place, ipat; guard.byPair)
+        {
+            if (auto token = place in be.tokenElements)
+            {
+                if (ipat.match(*token) is null)
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                return null;
+            }
+        }
+        return be;
+    }
+
     ///
     this(in string n, in Guard g, in ArcExpressionFunction aef) @nogc nothrow pure @safe
     {

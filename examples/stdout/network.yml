@@ -1,5 +1,8 @@
 type: network
 name: use standard output
+in:
+  - place: msg
+    pattern: _
 out:
   - place: end
     pattern: _
