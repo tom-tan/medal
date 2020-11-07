@@ -263,6 +263,10 @@ immutable class ShellCommandTransition_: Transition
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
             (TransitionFailed tf) {
+                import std.format : format;
+                auto expected = format!"interrupted (%s)"(SIGINT);
+                assert(tf.cause == expected,
+                       format!"`%s` is expected but: `%s`"(expected, tf.cause));
                 assert(tf.tokenElements.empty);
             },
             (Variant v) { assert(false); },
