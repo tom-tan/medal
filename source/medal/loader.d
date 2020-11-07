@@ -10,7 +10,7 @@ import dyaml : Node;
 import medal.transition.core;
 
 ///
-Transition loadTransition(Node node)
+Transition loadTransition(Node node) @safe
 {
     import std.exception : enforce;
 
@@ -58,7 +58,7 @@ EOS";
 }
 
 ///
-Transition loadShellCommandTransition(Node node)
+Transition loadShellCommandTransition(Node node) @safe
 in("type" in node)
 in(node["type"].as!string == "shell")
 do
@@ -78,7 +78,7 @@ do
 }
 
 ///
-Transition loadInvocationTransition(Node node)
+Transition loadInvocationTransition(Node node) @safe
 in("type" in node)
 in(node["type"].as!string == "network")
 do
@@ -86,18 +86,14 @@ do
     import medal.transition.network : InvocationTransition;
     import std.algorithm : map;
     import std.array : array;
-    import std.concurrency : Generator, yield;
     import std.exception : enforce;
     import std.range : empty;
 
     auto name = "name" in node ? node["name"].get!string : "";
-    auto trNodes = (*enforce("transitions" in node)).sequence.array;
-    auto trs = new Generator!Node({
-        foreach(Node n; node["transitions"])
-        {
-            yield(n);
-        }
-    }).map!loadTransition.array;
+    auto trs = (*enforce("transitions" in node))
+                    .sequence
+                    .map!loadTransition
+                    .array;
     enforce(!trs.empty);
 
     auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
@@ -107,22 +103,21 @@ do
 }
 
 ///
-Guard loadGuard(Node node)
+Guard loadGuard(Node node) @safe
 {
+    import std.algorithm : map;
     import std.array : assocArray;
-    import std.concurrency : Generator, yield;
     import std.exception : assumeUnique, enforce;
-    import std.typecons : tuple, Tuple;
+    import std.typecons : tuple;
 
-    auto pats = new Generator!(Tuple!(Place, InputPattern))({
-        foreach(Node n; node)
-        {
-            auto pl = (*enforce("place" in n)).as!string;
-            auto pat = (*enforce("pattern" in n)).as!string;
-            yield(tuple(Place(pl), InputPattern(pat)));
-        }
-    }).assocArray;
-    return pats.assumeUnique;
+    auto pats = node.sequence
+                    .map!((n) {
+                        auto pl = (*enforce("place" in n)).as!string;
+                        auto pat = (*enforce("pattern" in n)).as!string;
+                        return tuple(Place(pl), InputPattern(pat));
+                    })
+                    .assocArray;
+    return () @trusted { return pats.assumeUnique; }();
 }
 
 ///
@@ -140,37 +135,36 @@ EOS";
 }
 
 ///
-ArcExpressionFunction loadArcExpressionFunction(Node node)
+ArcExpressionFunction loadArcExpressionFunction(Node node) @safe
 {
+    import std.algorithm : map;
     import std.array : assocArray;
-    import std.concurrency : Generator, yield;
     import std.exception : assumeUnique, enforce;
-    import std.typecons : tuple, Tuple;
+    import std.typecons : tuple;
 
-    auto pats = new Generator!(Tuple!(Place, OutputPattern))({
-        foreach(Node n; node)
-        {
-            auto pl = (*enforce("place" in n)).as!string;
-            auto pat = (*enforce("pattern" in n)).as!string;
-            yield(tuple(Place(pl), OutputPattern(pat)));
-        }
-    }).assocArray;
-    return pats.assumeUnique;
+    auto pats = node.sequence
+                    .map!((n) {
+                        auto pl = (*enforce("place" in n)).as!string;
+                        auto pat = (*enforce("pattern" in n)).as!string;
+                        return tuple(Place(pl), OutputPattern(pat));
+                    })
+                    .assocArray;
+    return () @trusted { return pats.assumeUnique; }();
 }
 
 ///
-BindingElement loadBindingElement(Node node)
+BindingElement loadBindingElement(Node node) @safe
 {
+    import std.algorithm : map;
     import std.array : assocArray;
-    import std.concurrency : Generator, yield;
     import std.exception : assumeUnique;
-    import std.typecons : tuple, Tuple;
+    import std.typecons : tuple;
 
-    auto tokenElems = new Generator!(Tuple!(Place, Token))({
-        foreach(string pl, string tok; node)
-        {
-            yield(tuple(Place(pl), new Token(tok)));
-        }
-    }).assocArray;
-    return new BindingElement(tokenElems.assumeUnique);
+    auto tokenElems = node.mapping
+                          .map!(p => tuple(Place(p.key.as!string),
+                                           new Token(p.value.as!string)))
+                          .assocArray;
+    return new BindingElement(() @trusted { 
+        return tokenElems.assumeUnique; 
+    }());
 }
