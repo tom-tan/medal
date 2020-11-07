@@ -28,3 +28,5 @@ jobs:
         compiler: ${{ matrix.dc }}
     - name: Run tests
       run: dub -q test
+    - name: Run examples
+      run: ./test_examples.sh
