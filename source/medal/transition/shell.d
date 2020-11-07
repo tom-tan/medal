@@ -81,9 +81,16 @@ immutable class ShellCommandTransition_: Transition
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
             import std.process : wait;
-            // Note: if interrupted, it returns negative number
-			auto code = wait(cast()pid);
-			send(ownerTid, code);
+            try 
+            {
+                // Note: if interrupted, it returns negative number
+    			auto code = wait(cast()pid);
+	    		send(ownerTid, code);
+            }
+            catch(Exception e)
+            {
+                send(ownerTid, cast(shared)e);
+            }
 		}, cast(shared)pid);
 
         auto result2BE(int code)
