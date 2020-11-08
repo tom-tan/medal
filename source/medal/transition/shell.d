@@ -39,7 +39,7 @@ immutable class ShellCommandTransition_: Transition
         import std.algorithm : canFind, either;
         import std.concurrency : receive, send, spawn;
         import std.file : getcwd, remove;
-        import std.process : Pid, spawnShell, tryWait;
+        import std.process : Pid, spawnShell, tryWait, ProcessConfig = Config;
         import std.stdio : File, stdin;
         import std.variant : Variant;
 
@@ -77,11 +77,10 @@ immutable class ShellCommandTransition_: Transition
             import std.stdio : stderr;
             serr = stderr;
         }
-        
         auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
 
         auto cmd = commandWith(command, be);
-        auto pid = spawnShell(cmd, stdin, sout, serr);
+        auto pid = spawnShell(cmd, stdin, sout, serr, null, ProcessConfig.none, con.workdir);
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
