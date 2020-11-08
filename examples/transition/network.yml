@@ -6,4 +6,4 @@ in:
 out:
   - place: return
     pattern: RETURN
-command: echo %(message)
+command: echo ~(message)

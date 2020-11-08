@@ -34,7 +34,7 @@ transitions:
         pattern: done
       - place: resource
         pattern: $resource
-    command: echo run something in %(resource)
+    command: echo run something in ~(resource)
   - name: deallocate
     type: shell
     in:
@@ -49,5 +49,5 @@ transitions:
         pattern: done
       - place: exec_state
         pattern: $exec_state
-    command: echo deallocate %(resource)
+    command: echo deallocate ~(resource)
 

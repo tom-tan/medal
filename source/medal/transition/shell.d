@@ -279,24 +279,26 @@ private:
         import std.algorithm : findSplitAfter;
         import std.conv : to;
 
+        enum escape = '~';
+
         auto aa = be.tokenElements.to!(string[string]);
         string str = cmd;
         string resulted;
         do
         {
-            if (auto split = str.findSplitAfter("%"))
+            if (auto split = str.findSplitAfter([escape]))
             {
                 resulted ~= split[0][0..$-1];
                 auto rest = split[1];
                 if (rest.empty)
                 {
-                    assert(false, "Invalid escape `%` at the end of string");
+                    assert(false, "Invalid escape at the end of string");
                 }
 
                 switch(rest[0])
                 {
-                case '%':
-                    resulted ~= "%";
+                case escape:
+                    resulted ~= escape;
                     str = rest[1..$];
                     break;
                 case '(':
@@ -309,7 +311,7 @@ private:
                         }
                         else
                         {
-                            assert(false, "Invalid token: "~sp[0][0..$-1]);
+                            assert(false, "Invalid place: "~sp[0][0..$-1]);
                         }
                     }
                     else
@@ -319,7 +321,7 @@ private:
                     break;
                 default:
                     import std.format : format;
-                    assert(false, format!"Cannot escape `%%%s`"(rest[0]));
+                    assert(false, format!"Invalid escape `%s%s`"(escape, rest[0]));
                 }
             }
             else
@@ -335,19 +337,19 @@ private:
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo %(foo)", be) == "echo 3", commandWith(r"echo %(foo)", be));
+        assert(commandWith("echo ~(foo)", be) == "echo 3", commandWith("echo ~(foo)", be));
     }
 
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo %%(foo)", be) == "echo %(foo)", commandWith("echo %%(foo)", be));
+        assert(commandWith("echo ~~(foo)", be) == "echo ~(foo)", commandWith("echo ~~(foo)", be));
     }
 
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo %%%(foo)", be) == "echo %3", commandWith(r"echo %%%(foo)", be));
+        assert(commandWith("echo ~~~(foo)", be) == "echo ~3", commandWith("echo ~~~(foo)", be));
     }
 
     JSONValue startMsg(in BindingElement be, in Config con) const pure @safe

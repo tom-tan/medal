@@ -15,7 +15,7 @@ transitions:
     out:
       - place: out
         pattern: STDOUT
-    command: echo %(msg)
+    command: echo ~(msg)
   - name: cat
     type: shell
     in:
@@ -24,4 +24,4 @@ transitions:
     out:
       - place: end
         pattern: RETURN
-    command: cat %(out)
+    command: cat ~(out)
