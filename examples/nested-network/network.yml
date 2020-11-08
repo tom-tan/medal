@@ -1,0 +1,59 @@
+configuration:
+  tag: ping
+name: nested-ping-pong
+type: network
+in:
+  - place: ping
+    pattern: 0
+out:
+  - place: pang
+    pattern: finish
+transitions:
+  - name: toss
+    type: shell
+    in:
+      - place: ping
+        pattern: _
+    out:
+      - place: ping1
+        pattern: ping!
+      - place: ping2
+        pattern: piiiing
+    command: true
+  - name: pong1
+    type: invocation
+    use: subnetwork.yml
+    configuration:
+      tag: ~(tag).pong1
+      tmpdir: ~(tmpdir)/pong1
+    in:
+      - place: ping1
+        pattern: _
+        port-to: ping
+    out:
+      - place: pang
+        port-to: pong1
+  - name: pong2
+    type: invocation
+    use: subnetwork.yml
+    configuration:
+      tag: ~(tag).pong2
+      tmpdir: ~(tmpdir)/pong2
+    in:
+      - place: ping2
+        pattern: _
+        port-to: ping
+    out:
+      - place: pang
+        port-to: pong2
+  - name: smash
+    type: shell
+    in:
+      - place: pong1
+        pattern: _
+      - place: pong2
+        pattern: _
+    out:
+      - place: pang
+        pattern: finish
+    command: echo "smash $(cat ~(pong1)) $(cat ~(pong2))"

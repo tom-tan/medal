@@ -109,8 +109,14 @@ struct Engine
     BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
         import std.concurrency : receive, send, thisTid;
+        import std.file : mkdirRecurse;
         import std.typecons : Rebindable;
         import std.variant : Variant;
+
+        if (!config.tmpdir.empty)
+        {
+            mkdirRecurse(config.tmpdir);
+        }
 
         auto running = true;
         Rebindable!(typeof(return)) ret;

@@ -10,8 +10,10 @@ import dyaml : Node;
 import medal.config : Config;
 import medal.transition.core;
 
+import std.typecons : Tuple;
+
 ///
-Transition loadTransition(Node node) @safe
+Transition loadTransition(Node node, string file) @safe
 {
     import std.exception : enforce;
 
@@ -21,7 +23,9 @@ Transition loadTransition(Node node) @safe
     case "shell":
         return loadShellCommandTransition(node);
     case "network":
-        return loadInvocationTransition(node);
+        return loadNetworkTransition(node, file);
+    case "invocation":
+        return loadInvocationTransition(node, file);
     default:
         assert(false, "Unknown type: "~type);
     }
@@ -46,7 +50,7 @@ unittest
     command: true
 EOS";
     auto trRoot = Loader.fromString(inpStr).load;
-    auto tr = loadTransition(trRoot);
+    auto tr = loadTransition(trRoot, "");
     assert(cast(ShellCommandTransition)tr);
     spawnFire(tr, new BindingElement, thisTid);
     auto received = receiveTimeout(10.seconds,
@@ -79,30 +83,67 @@ do
 }
 
 ///
-Transition loadInvocationTransition(Node node) @safe
+Transition loadNetworkTransition(Node node, string file) @safe
 in("type" in node)
 in(node["type"].as!string == "network")
 do
 {
-    import medal.transition.network : InvocationTransition;
+    import medal.transition.network : NetworkTransition;
     import std.algorithm : map;
     import std.array : array;
     import std.exception : enforce;
     import std.range : empty;
 
     auto con = "configuration" in node ? loadConfig(node) : Config.init;
+    enforce(con.tmpdir.empty);
+    enforce(con.workdir.empty);
 
     auto name = "name" in node ? node["name"].get!string : "";
     auto trs = (*enforce("transitions" in node))
                     .sequence
-                    .map!loadTransition
+                    .map!(n => loadTransition(n, file))
                     .array;
     enforce(!trs.empty);
 
     auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
-    return new InvocationTransition(name, g1, g2, trs, con);
+    return new NetworkTransition(name, g1, g2, trs, con);
+}
+
+Transition loadInvocationTransition(Node node, string file) @safe
+in("type" in node)
+in(node["type"].as!string == "invocation")
+do
+{
+    import dyaml : Loader;
+
+    import medal.transition.network : InvocationTransition;
+
+    import std.algorithm : map;
+    import std.array : array;
+    import std.exception : enforce;
+    import std.file : exists;
+    import std.path : buildPath, dirName;
+    import std.range : empty;
+
+    auto con = "configuration" in node ? loadConfig(node) : Config.init;
+
+    auto name = "name" in node ? node["name"].get!string : "";
+
+    auto subFile = (*enforce("use" in node)).get!string;
+    subFile = buildPath(file.dirName, subFile);
+    enforce(subFile.exists, "Subnetwork file not found:"~subFile);
+    auto subNode = Loader.fromFile(subFile).load;
+    auto tr = loadTransition(subNode, subFile);
+
+    enforce("in" in node);
+    auto itpl = loadPortGuard(node["in"]);
+
+    enforce("out" in node);
+    auto oPort = loadOutputPort(node["out"]);
+
+    return new InvocationTransition(name, itpl[0], itpl[1], oPort, tr, con);
 }
 
 ///
@@ -121,6 +162,41 @@ Guard loadGuard(Node node) @safe
                     })
                     .assocArray;
     return () @trusted { return pats.assumeUnique; }();
+}
+
+Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node) @trusted
+{
+    import std.exception : assumeUnique, enforce;
+    import std.typecons : tuple;
+
+    InputPattern[Place] guard;
+    Place[Place] mapping;
+    foreach(Node n; node)
+    {
+        auto pl = Place((*enforce("place" in n)).as!string);
+        auto pat = InputPattern((*enforce("pattern" in n)).as!string);
+        auto p = Place((*enforce("port-to" in n)).as!string);
+        guard[pl] = pat;
+        mapping[pl] = p;
+    }
+    return tuple(guard.assumeUnique, mapping.assumeUnique);
+}
+
+immutable(Place[Place]) loadOutputPort(Node node) @trusted
+{
+    import std.algorithm : map;
+    import std.array : assocArray;
+    import std.exception : assumeUnique, enforce;
+    import std.typecons : tuple;
+
+    auto port = node.sequence
+                    .map!((n) {
+                        auto from = Place((*enforce("place" in n)).as!string);
+                        auto to = Place((*enforce("port-to" in n)).as!string);
+                        return tuple(from, to);
+                    })
+                    .assocArray;
+    return port.assumeUnique;
 }
 
 ///
@@ -176,7 +252,8 @@ BindingElement loadBindingElement(Node node) @safe
 Config loadConfig(Node node) @safe
 in("configuration" in node)
 {
-    import std.exception : assumeUnique;
+    import std.algorithm : canFind;
+    import std.exception : assumeUnique, enforce;
 
     auto n = node["configuration"];
     string tag;
@@ -185,12 +262,25 @@ in("configuration" in node)
         tag = t.get!string;
     }
 
+    string workdir;
+    if (auto wdir = "workdir" in n)
+    {
+        workdir = wdir.get!string;
+        enforce(!workdir.canFind(".."), "`..` is not allowed in `workdir`");
+    }
+
+    string tmpdir;
+    if (auto tdir = "tmpdir" in n)
+    {
+        tmpdir = tdir.get!string;
+        enforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`");
+    }
+
     string[string] environment;
     if (auto env = "environments" in n)
     {
         import std.algorithm : map;
         import std.array : assocArray;
-        import std.exception : enforce;
         import std.typecons : tuple;
 
         environment = env.sequence.map!((Node nn) {
@@ -204,6 +294,8 @@ in("configuration" in node)
         environment: () @trusted {
             return environment.assumeUnique;
         }(),
+        workdir: workdir,
+        tmpdir: tmpdir,
     };
     return ret;
 }

@@ -100,7 +100,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
     Node netRoot = Loader.fromFile(netFile).load;
-    auto tr = loadTransition(netRoot);
+    auto tr = loadTransition(netRoot, netFile);
 
     Rebindable!BindingElement initBe;
     if (initFile.exists)

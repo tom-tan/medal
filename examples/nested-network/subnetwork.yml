@@ -1,0 +1,29 @@
+configuration:
+  tag: this-may-be-overridden
+name: pong
+type: network
+in:
+  - place: ping
+    pattern: _
+out:
+  - place: pang
+    pattern: _
+transitions:
+  - name: ping
+    type: shell
+    in:
+      - place: ping
+        pattern: _
+    out:
+      - place: pong
+        pattern: STDOUT
+    command: echo ~(ping) | tr i o
+  - name: pong
+    type: shell
+    in:
+      - place: pong
+        pattern: _
+    out:
+      - place: pang
+        pattern: STDOUT
+    command: echo "smash $(cat ~(pong))"
