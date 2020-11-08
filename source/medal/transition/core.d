@@ -209,12 +209,13 @@ enum PatternType
     ///
     this(string pat) @nogc nothrow pure
     {
-        import std.algorithm : startsWith;
+        import std.algorithm : endsWith, startsWith;
 
-        if (pat.startsWith("$"))
+        if (pat.startsWith("~("))
         {
+            assert(pat.endsWith(")"));
             ptype = PatternType.Place;
-            pattern = pat[1..$];
+            pattern = pat[2..$-1];
         }
         else if (pat == SpecialPattern.Stdout)
         {
@@ -265,7 +266,7 @@ enum PatternType
     ///
     string toString() const nothrow pure
     {
-        return ptype == PatternType.Place ? "$"~pattern : pattern;
+        return ptype == PatternType.Place ? "~("~pattern~")" : pattern;
     }
 
     invariant
@@ -347,7 +348,7 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 @safe nothrow pure unittest
 {
     immutable aef = [
-        Place("buzz"): OutputPattern("$foo"),
+        Place("buzz"): OutputPattern("~(foo)"),
     ];
     auto be = new BindingElement([Place("foo"): new Token("3")]);
     auto ret = aef.apply(be, CommandResult.init);
