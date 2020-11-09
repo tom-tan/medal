@@ -1,5 +1,5 @@
 # Medal
-[![build](https://github.com/tom-tan/medal/workflows/CI/badge.svg?branch=master)](https://github.com/tom-tan/medal/actions)
+[![build](https://github.com/tom-tan/medal/workflows/CI/badge.svg?branch=master)](https://github.com/tom-tan/medal/actions) [![license](https://badgen.net/github/license/tom-tan/medal)](https://github.com/tom-tan/medal/blob/master/LICENSE)
 
 This is a workflow engine based on Petri nets.
 
