@@ -28,6 +28,7 @@ int main(string[] args)
     string logFile;
     string tmpdir;
     bool leaveTmpdir;
+    string workdir;
 
     auto helpInfo = args.getopt(
         config.caseSensitive,
@@ -37,6 +38,7 @@ int main(string[] args)
         "log", "Specify log destination (default: stderr)", &logFile,
         "tmpdir", "Specify temporary directory", &tmpdir,
         "leave-tmpdir", "Leave temporary directory after execution", &leaveTmpdir,
+        "workdir", "Specify working directory", &workdir,
     );
 
     if (helpInfo.helpWanted || args.length != 2)
@@ -91,7 +93,14 @@ EOS".outdent[0..$-1])(args[0].baseName);
             rmdirRecurse(tmpdir);
         }
     }
-    Config con = { tmpdir: tmpdir };
+
+    if (!workdir.empty && !workdir.exists)
+    {
+        sharedLog.critical(failureMsg("Specified working directory does not exist: "~workdir));
+        return 1;
+    }
+
+    Config con = { tmpdir: tmpdir, workdir: workdir };
 
     auto netFile = args[1];
     if (!netFile.exists)
