@@ -23,6 +23,9 @@ module medal.config;
     string tmpdir;
 
     ///
+    bool leaveTmpdir;
+
+    ///
     Config inherits(Config parent) inout pure
     {
         import std.algorithm : either;
@@ -31,9 +34,11 @@ module medal.config;
         auto t = either(tag.replace("~(tag)", parent.tag), parent.tag);
         auto wdir = either(workdir.replace("~(workdir)", parent.workdir),
                            parent.workdir);
-        auto tdir = either(tmpdir.replace("~(tmpdir)", parent.tmpdir),
+        auto tdir = either(tmpdir.replace("~(tmpdir)", parent.tmpdir)
+                                 .replace("~(workdir)", parent.workdir),
                            parent.tmpdir);
-        Config c = { tag: t, workdir: wdir, tmpdir: tdir };
+        auto leaveDir = parent.leaveTmpdir;
+        Config c = { tag: t, workdir: wdir, tmpdir: tdir, leaveTmpdir: leaveDir };
         return c;
     }
 }

@@ -100,7 +100,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
 
-    Config con = { tmpdir: tmpdir, workdir: workdir };
+    Config con = { tmpdir: tmpdir, workdir: workdir, leaveTmpdir: leaveTmpdir };
 
     auto netFile = args[1];
     if (!netFile.exists)

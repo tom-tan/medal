@@ -109,13 +109,25 @@ struct Engine
     BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
         import std.concurrency : receive, send, thisTid;
-        import std.file : mkdirRecurse;
         import std.typecons : Rebindable;
         import std.variant : Variant;
 
         if (!config.tmpdir.empty)
         {
+            import std.file : exists, mkdirRecurse;
+            if (config.tmpdir.exists)
+            {
+                logger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
+                return typeof(return).init;
+            }
             mkdirRecurse(config.tmpdir);
+        }
+        scope(exit) {
+            if (!config.tmpdir.empty && !config.leaveTmpdir)
+            {
+                import std.file : rmdirRecurse;
+                rmdirRecurse(config.tmpdir);
+            }
         }
 
         auto running = true;
@@ -156,7 +168,7 @@ struct Engine
                 },
             );
         }
-        logger.trace(stopMsg(ret, config));
+        logger.trace(successMsg(ret, config));
         return ret;
     }
 
@@ -201,7 +213,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue stopMsg(in BindingElement be, in Config con) @trusted
+    JSONValue successMsg(in BindingElement be, in Config con) @trusted
     {
         import std.conv : to;
 
@@ -210,6 +222,21 @@ struct Engine
         ret["event"] = "end";
         ret["tag"] = con.tag;
         ret["out"] = be.tokenElements.to!(string[string]);
+        ret["success"] = true;
+        return ret;
+    }
+
+    JSONValue failureMsg(in BindingElement be, in Config con, in string cause = "") @trusted
+    {
+        import std.conv : to;
+
+        JSONValue ret;
+        ret["sender"] = "engine";
+        ret["event"] = "end";
+        ret["tag"] = con.tag;
+        ret["in"] = be.tokenElements.to!(string[string]);
+        ret["success"] = false;
+        ret["cause"] = cause;
         return ret;
     }
 
