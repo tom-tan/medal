@@ -272,8 +272,11 @@ in("configuration" in node)
     string tmpdir;
     if (auto tdir = "tmpdir" in n)
     {
+        import std.algorithm : startsWith;
+
         tmpdir = tdir.get!string;
         enforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`");
+        enforce(tmpdir.startsWith("~(tmpdir)"), "`tmpdir` should be in the parent `tmpdir`");
     }
 
     string[string] environment;

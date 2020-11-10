@@ -45,7 +45,9 @@ protected:
         import std.algorithm : either;
         import std.concurrency : send;
 
-        auto engineConfig = config.inherits(con);
+        // NetworkTransition is only called by main() or InvocationTransition
+        // Therefore it should use the parent `tmpdir` as is.
+        auto engineConfig = config.inherits(con, true);
 
         logger.info(startMsg(initBe, con));
         scope(failure) logger.critical(failureMsg(initBe, con, "internal transition failed"));

@@ -112,7 +112,13 @@ struct Engine
         import std.typecons : Rebindable;
         import std.variant : Variant;
 
-        if (!config.tmpdir.empty)
+        logger.trace(startMsg(initBe, config));
+
+        if (config.reuseParentTmpdir)
+        {
+            logger.tracef("reuse tmpdir `%s`", config.tmpdir);
+        }
+        else if (!config.tmpdir.empty)
         {
             import std.file : exists, mkdirRecurse;
             if (config.tmpdir.exists)
@@ -120,19 +126,12 @@ struct Engine
                 logger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
                 return typeof(return).init;
             }
+            // it will be deleted by root (app.main)
             mkdirRecurse(config.tmpdir);
-        }
-        scope(exit) {
-            if (!config.tmpdir.empty && !config.leaveTmpdir)
-            {
-                import std.file : rmdirRecurse;
-                rmdirRecurse(config.tmpdir);
-            }
         }
 
         auto running = true;
         Rebindable!(typeof(return)) ret;
-        logger.trace(startMsg(initBe, config));
         send(thisTid, TransitionSucceeded(initBe));
         while(running)
         {

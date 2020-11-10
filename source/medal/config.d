@@ -26,7 +26,10 @@ module medal.config;
     bool leaveTmpdir;
 
     ///
-    Config inherits(Config parent) inout pure
+    bool reuseParentTmpdir;
+
+    ///
+    Config inherits(Config parent, bool inheritReuse = false) inout pure
     {
         import std.algorithm : either;
         import std.array : replace;
@@ -38,7 +41,12 @@ module medal.config;
                                  .replace("~(workdir)", parent.workdir),
                            parent.tmpdir);
         auto leaveDir = parent.leaveTmpdir;
-        Config c = { tag: t, workdir: wdir, tmpdir: tdir, leaveTmpdir: leaveDir };
+        auto reuse = inheritReuse ? parent.reuseParentTmpdir
+                                  : tdir == parent.tmpdir;
+        Config c = {
+            tag: t, workdir: wdir, tmpdir: tdir,
+            leaveTmpdir: leaveDir, reuseParentTmpdir: reuse,
+        };
         return c;
     }
 }
