@@ -1,8 +1,6 @@
 #!/bin/sh
 
-if [ ! -x ./bin/medal ]; then
-    dub build -b release
-fi
+dub build -b release
 
 for ex in examples/*
 do
