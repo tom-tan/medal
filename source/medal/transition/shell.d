@@ -36,7 +36,7 @@ immutable class ShellCommandTransition_: Transition
     protected override void fire(in BindingElement be, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
     {
         import medal.message : SignalSent, TransitionFailed, TransitionSucceeded;
-        import std.algorithm : canFind, either;
+        import std.algorithm : canFind, either, filter;
         import std.concurrency : receive, send, spawn;
         import std.file : getcwd, remove;
         import std.process : Pid, spawnShell, tryWait, ProcessConfig = Config;
@@ -47,14 +47,15 @@ immutable class ShellCommandTransition_: Transition
         scope(failure) logger.critical(failureMsg(be, con, "unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
-        auto needStdout = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stdout);
+        auto stdoutPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].pattern == SpecialPattern.Stdout);
         File sout;
-        if (needStdout)
+        if (!stdoutPlaces.empty)
         {
+            import std.format : format;
             import std.path : buildPath;
             import std.uuid : randomUUID;
 
-            auto fname = randomUUID.toString;
+            auto fname = format!"%s-%s"(stdoutPlaces.front, randomUUID);
             sout = File(buildPath(tmpdir, fname), "w");
         }
         else
@@ -63,13 +64,14 @@ immutable class ShellCommandTransition_: Transition
             sout = stdout;
         }
 
-        auto needStderr = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Stderr);
+        auto stderrPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].pattern == SpecialPattern.Stderr);
         File serr;
-        if (needStderr)
+        if (!stderrPlaces.empty)
         {
+            import std.format : format;
             import std.path : buildPath;
             import std.uuid : randomUUID;
-            auto fname = randomUUID.toString;
+            auto fname = format!"%s-%s"(stderrPlaces.front, randomUUID);
             serr = File(buildPath(tmpdir, fname), "w");
         }
         else
@@ -101,11 +103,11 @@ immutable class ShellCommandTransition_: Transition
         {
             CommandResult result;
             result.code = code;
-            if (needStdout)
+            if (!stdoutPlaces.empty)
             {
                 result.stdout = sout.name;
             }
-            if (needStderr)
+            if (!stderrPlaces.empty)
             {
                 result.stderr = serr.name;
             }
@@ -364,6 +366,8 @@ private:
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
         ret["command"] = commandWith(command, be);
+        ret["workdir"] = con.workdir;
+        ret["tmpdir"] = con.tmpdir;
         return ret;
     }
     
@@ -381,6 +385,8 @@ private:
         ret["out"] = obe.tokenElements.to!(string[string]);
         ret["command"] = commandWith(command, ibe);
         ret["success"] = true;
+        ret["workdir"] = con.workdir;
+        ret["tmpdir"] = con.tmpdir;
         return ret;
     }
 
@@ -399,6 +405,8 @@ private:
         ret["command"] = commandWith(command, be);
         ret["success"] = false;
         ret["cause"] = cause;
+        ret["workdir"] = con.workdir;
+        ret["tmpdir"] = con.tmpdir;
         return ret;
     }
 
