@@ -59,6 +59,7 @@ public import std.experimental.logger : LogLevel, Logger, sharedLog;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
         log["payload"] = json;
         file.writeln(log);
+        file.flush;
     }
 
     protected File file_;
