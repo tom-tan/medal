@@ -82,7 +82,7 @@ immutable class ShellCommandTransition_: Transition
         auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
 
         auto cmd = commandWith(command, be);
-        auto pid = spawnShell(cmd, stdin, sout, serr, null, ProcessConfig.none, con.workdir);
+        auto pid = spawnShell(cmd, stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir], ProcessConfig.none, con.workdir);
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
