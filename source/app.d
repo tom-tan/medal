@@ -18,6 +18,7 @@ int main(string[] args)
     import std.file : exists, mkdirRecurse;
     import std.format : format;
     import std.getopt : config, getopt;
+    import std.path : absolutePath;
     import std.range : empty;
     import std.stdio : stderr;
     import std.typecons : Rebindable;
@@ -70,7 +71,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         import std.path : buildPath;
         import std.process : thisProcessID;
 
-        tmpdir = buildPath(tempDir, format!"medal-%s"(thisProcessID));
+        tmpdir = buildPath(tempDir, format!"medal-%s"(thisProcessID)).absolutePath;
         if (tmpdir.exists)
         {
             sharedLog.critical(failureMsg("Temporary directory already exists: "~tmpdir));
@@ -79,6 +80,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
     }
     else
     {
+        tmpdir = tmpdir.absolutePath;
         if (tmpdir.exists)
         {
             sharedLog.critical(failureMsg("Specified temporary directory already exists: "~tmpdir));
@@ -94,6 +96,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         }
     }
 
+    workdir = workdir.absolutePath;
     if (!workdir.empty && !workdir.exists)
     {
         sharedLog.critical(failureMsg("Specified working directory does not exist: "~workdir));
