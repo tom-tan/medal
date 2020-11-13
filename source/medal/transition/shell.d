@@ -125,6 +125,8 @@ immutable class ShellCommandTransition_: Transition
                 }
                 else
                 {
+                    import std.format : format;
+
                     auto msg = format!"command returned with non-zero (%s)"(code);
                     logger.info(failureMsg(be, con, msg));
                     send(networkTid,
