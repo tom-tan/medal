@@ -114,11 +114,7 @@ struct Engine
 
         logger.trace(startMsg(initBe, config));
 
-        if (config.reuseParentTmpdir)
-        {
-            logger.tracef("reuse tmpdir `%s`", config.tmpdir);
-        }
-        else if (!config.tmpdir.empty)
+        if (!config.reuseParentTmpdir && !config.tmpdir.empty)
         {
             import std.file : exists, mkdirRecurse;
             if (config.tmpdir.exists)
