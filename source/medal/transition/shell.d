@@ -125,7 +125,7 @@ immutable class ShellCommandTransition_: Transition
                 }
                 else
                 {
-                    auto msg = "command returned with non-zero";
+                    auto msg = format!"command returned with non-zero (%s)"(code);
                     logger.info(failureMsg(be, con, msg));
                     send(networkTid,
                          TransitionFailed(be, msg));
