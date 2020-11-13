@@ -216,7 +216,7 @@ struct Engine
         ret["sender"] = "engine";
         ret["event"] = "end";
         ret["tag"] = con.tag;
-        ret["out"] = be.tokenElements.to!(string[string]);
+        ret["out"] = be is null ? (string[string]).init : be.tokenElements.to!(string[string]);
         ret["success"] = true;
         return ret;
     }
