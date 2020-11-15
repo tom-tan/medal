@@ -58,7 +58,7 @@ jobs:
           fetch-depth: 1
       - name: build a package
         run: |
-          docker run --rm -it -v ${GITHUB_WORKSPACE}:/workdir -w /workdir alpine:${alpineVersion} sh alpine-build.sh
+          docker run --rm -i -v ${GITHUB_WORKSPACE}:/workdir -w /workdir alpine:${alpineVersion} sh alpine-build.sh
           cd ${GITHUB_WORKSPACE}/bin
           tar cf ${GITHUB_WORKSPACE}/medal.tar.gz medal
         env:
