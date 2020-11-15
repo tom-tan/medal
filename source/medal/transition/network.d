@@ -315,11 +315,6 @@ private:
         return ret;
     }
 
-    unittest
-    {
-
-    }
-
     Place[Place] inputPorts;
     Place[Place] outputPorts;
     Transition subTransition;
