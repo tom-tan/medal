@@ -49,8 +49,7 @@ struct EngineWillStop
         ret["event"] = "oneshot";
         ret["transition-type"] = "engine-stop";
         ret["tag"] = con.tag;
-        ret["in"] = be.tokenElements.to!(string[string]);
-        ret["out"] = be.tokenElements.to!(string[string]);
+        ret["result"] = be.tokenElements.to!(string[string]);
         return ret;
     }
 
@@ -63,8 +62,7 @@ struct EngineWillStop
         ret["event"] = "oneshot-failure";
         ret["transition-type"] = "engine-stop";
         ret["tag"] = con.tag;
-        ret["in"] = be.tokenElements.to!(string[string]);
-        ret["out"] = be.tokenElements.to!(string[string]);
+        ret["result"] = be.tokenElements.to!(string[string]);
         ret["cause"] = cause;
         return ret;
     }
