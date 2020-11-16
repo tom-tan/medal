@@ -94,6 +94,7 @@ do
     import std.exception : enforce;
     import std.range : empty;
 
+    enforce("configurations" !in node, "Invalid field `configurations`; did you mean `configuration`?");
     auto con = "configuration" in node ? loadConfig(node) : Config.init;
     enforce(con.tmpdir.empty);
     enforce(con.workdir.empty);
@@ -280,6 +281,7 @@ in("configuration" in node)
     }
 
     string[string] environment;
+    enforce("environment" !in n, "Invalid field `environment`; did you mean `environments`?");
     if (auto env = "environments" in n)
     {
         import std.algorithm : map;
