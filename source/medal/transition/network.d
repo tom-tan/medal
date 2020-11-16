@@ -47,20 +47,20 @@ protected:
 
         // NetworkTransition is only called by main() or InvocationTransition
         // Therefore it should use the parent `tmpdir` as is.
-        auto engineConfig = config.inherits(con, true);
+        auto netConfig = config.inherits(con, true);
 
-        logger.info(startMsg(initBe, con));
-        scope(failure) logger.critical(failureMsg(initBe, con, "internal transition failed"));
+        logger.info(startMsg(initBe, netConfig));
+        scope(failure) logger.critical(failureMsg(initBe, netConfig, "internal transition failed"));
         auto engine = Engine(transitions, stopGuard);
-        auto retBe = engine.run(initBe, engineConfig, logger);
+        auto retBe = engine.run(initBe, netConfig, logger);
         if (retBe)
         {
-            logger.info(successMsg(initBe, retBe, con));
+            logger.info(successMsg(initBe, retBe, netConfig));
             send(networkTid, TransitionSucceeded(retBe));
         }
         else
         {
-            logger.info(failureMsg(initBe, con, "internal transition failed"));
+            logger.info(failureMsg(initBe, netConfig, "internal transition failed"));
             send(networkTid, TransitionFailed(initBe));
         }
     }
