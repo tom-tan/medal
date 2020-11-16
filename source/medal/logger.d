@@ -21,7 +21,7 @@ public import std.experimental.logger : LogLevel, Logger, sharedLog;
 
         super(lv);
         this.filename = fn;
-        this.file_.open(this.filename, "a");
+        this.file_.open(this.filename, "w");
         auto now = Clock.currTime;
         auto offset = now.utcOffset;
         tz = new immutable SimpleTimeZone(offset);
