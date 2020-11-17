@@ -36,25 +36,36 @@ void main(string[] args)
     auto root = Loader.fromFile(inp).load;
     auto type = enforce("type" in root, "`type` field is needed").get!string;
 
+    transition2dot(root, trs, places, edges);
+    File(out_dot, "w").writeln(to_dot(trs, places, edges));
+}
+
+void transition2dot(Node node,
+                    ref RedBlackTree!string trs,
+                    ref RedBlackTree!string places,
+                    ref Edge[] edges)
+{
+    auto type = enforce("type" in node, "`type` field is needed").get!string;
     switch(type)
     {
     case "shell":
-        transition2dot(root, trs, places, edges);
+        shell2dot(node, trs, places, edges);
         break;
     case "network":
-        network2dot(root, trs, places, edges);
+        network2dot(node, trs, places, edges);
+        break;
+    case "invocation":
+        invocation2dot(node, trs, places, edges);
         break;
     default:
         enforce(false, "Unknown type: "~type);
     }
-
-    File(out_dot, "w").writeln(to_dot(trs, places, edges));
 }
 
-void transition2dot(Node n, 
-                    ref RedBlackTree!string trs,
-                    ref RedBlackTree!string places,
-                    ref Edge[] edges)
+void shell2dot(Node n, 
+               ref RedBlackTree!string trs,
+               ref RedBlackTree!string places,
+               ref Edge[] edges)
 {
     auto name = enforce("name" in n, "`name` field is needed").get!string;
     trs.insert(name);
@@ -73,7 +84,7 @@ void transition2dot(Node n,
         outs.sequence.each!((o) {
             auto op = enforce("place" in o, "`place` field is needed").get!string;
             places.insert(op);
-            auto pat = enforce("pattern" in o, "`pattern` field is needed").get!string;
+            auto pat = enforce("pattern" in o, "`pattern` field is needed in "~name).get!string;
             edges ~= tuple(name, op, pat);
         });
     }
@@ -98,6 +109,35 @@ void network2dot(Node n,
             edges ~= tuple(op, end, pat);
         });
     }
+}
+
+void invocation2dot(Node n, 
+                    ref RedBlackTree!string trs,
+                    ref RedBlackTree!string places,
+                    ref Edge[] edges)
+{
+    auto name = enforce("name" in n, "`name` field is needed").get!string;
+    trs.insert(name);
+
+    if (auto inp = "in" in n)
+    {
+        inp.sequence.each!((i) {
+            auto ip = enforce("place" in i, "`place` field is needed").get!string;
+            places.insert(ip);
+            auto pat = enforce("pattern" in i, "`pattern` field is needed").get!string;
+            edges ~= tuple(ip, name, "="~pat);
+        });
+    }
+    if (auto outs = "out" in n)
+    {
+        outs.sequence.each!((o) {
+            auto port = enforce("port-to" in o, "`port-to` field is needed in "~name).get!string;
+            places.insert(port);
+            auto op = enforce("place" in o, "`place` field is needed").get!string;
+            edges ~= tuple(name, port, "net."~op);
+        });
+    }
+    
 }
 
 auto to_dot(RedBlackTree!string trs,
