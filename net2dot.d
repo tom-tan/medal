@@ -1,7 +1,12 @@
 #!/usr/bin/env dub
 /+ dub.sdl:
     name "net2dot"
+    targetPath "bin"
     dependency "dyaml" version="~>0.8.2"
+    buildType "release-static" {
+		buildOptions "releaseMode" "optimize" "inline"
+		dflags "-static" platform="posix-ldc"
+    }
 +/
 /**
  * Authors: Tomoya Tanjo
