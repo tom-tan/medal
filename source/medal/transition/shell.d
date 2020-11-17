@@ -91,7 +91,7 @@ immutable class ShellCommandTransition_: Transition
             import std.path : buildPath;
             import std.typecons : tuple;
             import std.uuid : randomUUID;
-            files = filePlaces.map!(f => tuple(f, buildPath(tmpdir, format!"%s-%s"(f.name, randomUUID))))
+            files = filePlaces.map!(f => tuple(f, buildPath(tmpdir, format!"%s-%s"(f, randomUUID))))
                               .assocArray;
         }
 
