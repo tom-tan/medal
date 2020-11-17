@@ -32,7 +32,7 @@ transitions:
         port-to: ping
     out:
       - place: pang
-        port-to: pong1
+        port-to: pang1
   - name: pong2
     type: invocation
     use: subnetwork.yml
@@ -45,15 +45,15 @@ transitions:
         port-to: ping
     out:
       - place: pang
-        port-to: pong2
+        port-to: pang2
   - name: smash
     type: shell
     in:
-      - place: pong1
+      - place: pang1
         pattern: _
-      - place: pong2
+      - place: pang2
         pattern: _
     out:
       - place: pang
         pattern: finish
-    command: echo "smash $(cat ~(pong1)) $(cat ~(pong2))"
+    command: echo "smash $(cat ~(pang1)) $(cat ~(pang2))"
