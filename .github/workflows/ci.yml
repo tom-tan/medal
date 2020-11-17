@@ -61,6 +61,7 @@ jobs:
           docker run --rm -i -v ${GITHUB_WORKSPACE}:/workdir -w /workdir alpine:${alpineVersion} sh alpine-build.sh
           cd ${GITHUB_WORKSPACE}/bin
           tar cf ${GITHUB_WORKSPACE}/medal.tar.gz medal
+          tar cf ${GITHUB_WORKSPACE}/net2dot.tar.gz net2dot
         env:
           alpineVersion: 3.12
       - uses: actions/create-release@v1
@@ -70,11 +71,21 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
-      - uses: actions/upload-release-asset@v1
+      - name: Upload medal
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ github.workspace }}/medal.tar.gz
           asset_name: medal-linux-x86_64.tar.gz
+          asset_content_type: application/tar+gzip
+      - name: Upload net2dot
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ github.workspace }}/net2dot.tar.gz
+          asset_name: net2dot-linux-x86_64.tar.gz
           asset_content_type: application/tar+gzip
