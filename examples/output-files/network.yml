@@ -1,0 +1,16 @@
+name: splitter
+type: shell
+in:
+  - place: inp
+    pattern: _
+out:
+  - place: foo
+    pattern: FILE
+  - place: bar
+    pattern: FILE
+  - place: buzz
+    pattern: FILE
+command: |
+  cat ~(inp) | awk '{ print $1 }' > ~(foo)
+  cat ~(inp) | awk '{ print $2 }' > ~(bar)
+  cat ~(inp) | awk '{ print $3 }' > ~(buzz)

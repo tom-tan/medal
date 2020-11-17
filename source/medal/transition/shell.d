@@ -9,6 +9,7 @@ import medal.config : Config;
 import medal.logger : Logger, sharedLog;
 import medal.transition.core;
 
+import std.algorithm : all;
 import std.concurrency : Tid;
 import std.json : JSONValue;
 import std.range : empty;
@@ -44,10 +45,10 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         logger.info(startMsg(be, con));
-        scope(failure) logger.critical(failureMsg(be, con, "unknown error"));
+        scope(failure) logger.critical(failureMsg(be, command, con, "unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
-        auto stdoutPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].pattern == SpecialPattern.Stdout);
+        auto stdoutPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].type == PatternType.Stdout);
         File sout;
         if (!stdoutPlaces.empty)
         {
@@ -64,7 +65,7 @@ immutable class ShellCommandTransition_: Transition
             sout = stdout;
         }
 
-        auto stderrPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].pattern == SpecialPattern.Stderr);
+        auto stderrPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].type == PatternType.Stderr);
         File serr;
         if (!stderrPlaces.empty)
         {
@@ -79,9 +80,25 @@ immutable class ShellCommandTransition_: Transition
             import std.stdio : stderr;
             serr = stderr;
         }
-        auto needReturn = arcExpFun.byValue.canFind!(p => p.pattern == SpecialPattern.Return);
 
-        auto cmd = commandWith(command, be);
+        auto filePlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].type == PatternType.File);
+        string[Place] files;
+        if (!filePlaces.empty)
+        {
+            import std.algorithm : map;
+            import std.array : assocArray;
+            import std.format : format;
+            import std.path : buildPath;
+            import std.typecons : tuple;
+            import std.uuid : randomUUID;
+            files = filePlaces.map!(f => tuple(f, buildPath(tmpdir, format!"%s-%s"(f.name, randomUUID))))
+                              .assocArray;
+        }
+
+        auto needReturn = arcExpFun.byValue.canFind!(p => p.type == PatternType.Return);
+
+        auto cmd = commandWith(command, be, files);
+        logger.trace(constructMsg(be, cmd, con));
         auto pid = spawnShell(cmd, stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir], ProcessConfig.none, con.workdir);
 
 		spawn((shared Pid pid) {
@@ -111,6 +128,7 @@ immutable class ShellCommandTransition_: Transition
             {
                 result.stderr = serr.name;
             }
+            result.files = files;
             return arcExpFun.apply(be, result);
         }
 
@@ -119,7 +137,7 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = result2BE(code);
                 if (needReturn || code == 0)
                 {
-                    logger.info(successMsg(be, ret, con));
+                    logger.info(successMsg(be, ret, cmd, con));
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
@@ -128,7 +146,7 @@ immutable class ShellCommandTransition_: Transition
                     import std.format : format;
 
                     auto msg = format!"command returned with non-zero (%s)"(code);
-                    logger.info(failureMsg(be, con, msg));
+                    logger.info(failureMsg(be, cmd, con, msg));
                     send(networkTid,
                          TransitionFailed(be, msg));
                 }
@@ -141,7 +159,7 @@ immutable class ShellCommandTransition_: Transition
                 kill(pid);
                 receiveOnly!int;
                 auto msg = format!"interrupted (%s)"(sig.no);
-                logger.info(failureMsg(be, con, msg));
+                logger.info(failureMsg(be, cmd, con, msg));
                 send(networkTid,
                      TransitionFailed(be, msg));
             },
@@ -154,7 +172,7 @@ immutable class ShellCommandTransition_: Transition
                 receiveOnly!int;
 
                 auto msg = format!"unknown message (%s)"(v);
-                logger.critical(failureMsg(be, con, msg));
+                logger.critical(failureMsg(be, cmd, con, msg));
                 send(networkTid, TransitionFailed(be, msg));
             }
         );
@@ -277,14 +295,19 @@ immutable class ShellCommandTransition_: Transition
         assert(received);
     }
 private:
-    static string commandWith(in string cmd, in BindingElement be) pure @safe
+    static string commandWith(in string cmd, in BindingElement be, in string[Place] outFiles) pure @safe
+    in(outFiles.byKey.all!(p => p !in be.tokenElements))
+    do
     {
         import std.algorithm : findSplitAfter;
+        import std.array : assocArray, byPair;
         import std.conv : to;
+        import std.range : chain;
 
         enum escape = '~';
 
-        auto aa = be.tokenElements.to!(string[string]);
+        auto aa = chain(be.tokenElements.to!(string[string]).byPair, 
+                        outFiles.to!(string[string]).byPair).assocArray;
         string str = cmd;
         string resulted;
         do
@@ -340,19 +363,32 @@ private:
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo ~(foo)", be) == "echo 3", commandWith("echo ~(foo)", be));
+        auto cmd = commandWith("echo ~(foo)", be, (string[Place]).init);
+        assert(cmd == "echo 3", cmd);
     }
 
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo ~~(foo)", be) == "echo ~(foo)", commandWith("echo ~~(foo)", be));
+        auto cmd = commandWith("echo ~~(foo)", be, (string[Place]).init);
+        assert(cmd == "echo ~(foo)", cmd);
     }
 
     @safe pure unittest
     {
         auto be = new BindingElement([Place("foo"): new Token("3")]);
-        assert(commandWith("echo ~~~(foo)", be) == "echo ~3", commandWith("echo ~~~(foo)", be));
+        auto cmd = commandWith("echo ~~~(foo)", be, (string[Place]).init);
+        assert(cmd == "echo ~3", cmd);
+    }
+
+    @safe pure unittest
+    {
+        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        auto outFiles = [
+            Place("bar"): "output.txt"
+        ];
+        auto cmd = commandWith("echo ~(foo) > ~(bar)", be, outFiles);
+        assert(cmd == "echo 3 > output.txt", cmd);
     }
 
     JSONValue startMsg(in BindingElement be, in Config con) const pure @safe
@@ -367,13 +403,32 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = commandWith(command, be);
+        ret["command"] = command;
         ret["workdir"] = con.workdir;
         ret["tmpdir"] = con.tmpdir;
         return ret;
     }
-    
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in Config con) const pure @safe
+
+    JSONValue constructMsg(in BindingElement be, in string cmd, in Config con) const pure @safe
+    {
+        import std.conv : to;
+
+        JSONValue ret;
+        ret["sender"] = "transition";
+        ret["event"] = "construct-command";
+        ret["transition-type"] = "shell";
+        ret["tag"] = con.tag;
+        ret["name"] = name;
+        ret["in"] = be.tokenElements.to!(string[string]);
+        ret["out"] = arcExpFun.to!(string[string]);
+        ret["command"] = command;
+        ret["constructed-command"] = cmd;
+        ret["workdir"] = con.workdir;
+        ret["tmpdir"] = con.tmpdir;
+        return ret;
+    }
+
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in string cmd, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -385,14 +440,14 @@ private:
         ret["name"] = name;
         ret["in"] = ibe.tokenElements.to!(string[string]);
         ret["out"] = obe.tokenElements.to!(string[string]);
-        ret["command"] = commandWith(command, ibe);
+        ret["command"] = cmd;
         ret["success"] = true;
         ret["workdir"] = con.workdir;
         ret["tmpdir"] = con.tmpdir;
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in Config con, in string cause) const pure @safe
+    JSONValue failureMsg(in BindingElement be, in string cmd, in Config con, in string cause) const pure @safe
     {
         import std.conv : to;
 
@@ -404,7 +459,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["out"] = arcExpFun.to!(string[string]);
-        ret["command"] = commandWith(command, be);
+        ret["command"] = cmd;
         ret["success"] = false;
         ret["cause"] = cause;
         ret["workdir"] = con.workdir;

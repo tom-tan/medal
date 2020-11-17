@@ -132,6 +132,7 @@ enum SpecialPattern: string
     Stdout = "STDOUT", ///
     Stderr = "STDERR", ///
     Return = "RETURN", ///
+    File   = "FILE", ///
 }
 
 ///
@@ -141,6 +142,8 @@ struct CommandResult
     string stdout;
     ///
     string stderr;
+    ///
+    string[Place] files;
     ///
     int code;
 }
@@ -153,6 +156,7 @@ enum PatternType
     Any,
     Stdout,
     Stderr,
+    File,
     Return,
 }
 
@@ -165,11 +169,11 @@ enum PatternType
     {
         if (pat == SpecialPattern.Any)
         {
-            ptype = PatternType.Any;
+            type = PatternType.Any;
         }
         else
         {
-            ptype = PatternType.Constant;
+            type = PatternType.Constant;
         }
         pattern = pat;
     }
@@ -177,13 +181,13 @@ enum PatternType
     ///
     const(Token) match(in Token token) const @nogc nothrow pure
     {
-        final switch(ptype) with(PatternType)
+        final switch(type) with(PatternType)
         {
         case Any:
             return token;
         case Constant:
             return pattern == token.value ? token : null;
-        case Stdout, Stderr, Return, Place:
+        case Place, Stdout, Stderr, File, Return:
             assert(false);
         }
     }
@@ -196,11 +200,11 @@ enum PatternType
 
     invariant
     {
-        assert(ptype == PatternType.Any || ptype == PatternType.Constant);
+        assert(type == PatternType.Any || type == PatternType.Constant);
     }
 
     string pattern;
-    PatternType ptype;
+    PatternType type;
 }
 
 ///
@@ -214,39 +218,45 @@ enum PatternType
         if (pat.startsWith("~("))
         {
             assert(pat.endsWith(")"));
-            ptype = PatternType.Place;
+            type = PatternType.Place;
             pattern = pat[2..$-1];
         }
         else if (pat == SpecialPattern.Stdout)
         {
-            ptype = PatternType.Stdout;
+            type = PatternType.Stdout;
             pattern = pat;
         }
         else if (pat == SpecialPattern.Stderr)
         {
-            ptype = PatternType.Stderr;
+            type = PatternType.Stderr;
+            pattern = pat;
+        }
+        else if (pat == SpecialPattern.File)
+        {
+            type = PatternType.File;
             pattern = pat;
         }
         else if (pat == SpecialPattern.Return)
         {
-            ptype = PatternType.Return;
+            type = PatternType.Return;
             pattern = pat;
         }
         else
         {
-            ptype = PatternType.Constant;
+            type = PatternType.Constant;
             pattern = pat;
         }
     }
 
     ///
-    const(Token) match(in BindingElement be, in CommandResult result) const nothrow pure
+    const(Token) match(in Place place, in BindingElement be, in CommandResult result) const nothrow pure
     {
         import std.algorithm : find;
         import std.array : byPair;
         import std.conv : to;
+        import std.range : empty;
 
-        final switch(ptype) with(PatternType)
+        final switch(type) with(PatternType)
         {
         case Place:
             return be.tokenElements.byPair.find!(pt => pt[0].name == pattern).front.value;
@@ -254,6 +264,11 @@ enum PatternType
             return new Token(result.stdout);
         case Stderr:
             return new Token(result.stderr);
+        case File:
+            auto file = place in result.files;
+            assert(file);
+            assert(!file.empty);
+            return new Token(*file);
         case Return:
             return new Token(result.code.to!string);
         case Constant:
@@ -266,16 +281,16 @@ enum PatternType
     ///
     string toString() const nothrow pure
     {
-        return ptype == PatternType.Place ? "~("~pattern~")" : pattern;
+        return type == PatternType.Place ? "~("~pattern~")" : pattern;
     }
 
     invariant
     {
-        assert(ptype != PatternType.Any);
+        assert(type != PatternType.Any);
     }
 
     string pattern;
-    PatternType ptype;
+    PatternType type;
 }
 
 
@@ -293,7 +308,7 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
     auto tokenElems = aef.byPair.map!((kv) {
         auto place = kv.key;
         auto pat = kv.value;
-        return tuple(place, cast()pat.match(be, result));
+        return tuple(place, cast()pat.match(place, be, result));
     }).assocArray; // unsafe: assocArray
     return new BindingElement(tokenElems.assumeUnique); // unsafe: assumeUnique
 }
