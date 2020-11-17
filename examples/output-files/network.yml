@@ -10,7 +10,10 @@ out:
     pattern: FILE
   - place: buzz
     pattern: FILE
+  - place: others
+    pattern: STDOUT
 command: |
   cat ~(inp) | awk '{ print $1 }' > ~(foo)
   cat ~(inp) | awk '{ print $2 }' > ~(bar)
   cat ~(inp) | awk '{ print $3 }' > ~(buzz)
+  echo this is other output
