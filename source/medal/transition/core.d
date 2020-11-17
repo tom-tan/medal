@@ -336,7 +336,7 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
         Place("foo"): OutputPattern(SpecialPattern.Return),
         Place("bar"): OutputPattern("other-constant-value"),
     ];
-    CommandResult result = { stdout: "standard output", code: 0 };
+    CommandResult result = { stdout: "stdout.txt", code: 0 };
     auto be = aef.apply(BindingElement.init, result);
     assert(be == [
         Place("foo"): new Token("0"),
