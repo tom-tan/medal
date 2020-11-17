@@ -40,7 +40,7 @@ immutable class ShellCommandTransition_: Transition
         import std.algorithm : canFind, either, filter;
         import std.concurrency : receive, send, spawn;
         import std.file : getcwd, remove;
-        import std.process : Pid, spawnShell, tryWait, ProcessConfig = Config;
+        import std.process : Pid, spawnProcess, tryWait, ProcessConfig = Config;
         import std.stdio : File, stdin;
         import std.variant : Variant;
 
@@ -99,7 +99,8 @@ immutable class ShellCommandTransition_: Transition
 
         auto cmd = commandWith(command, be, files);
         logger.trace(constructMsg(be, cmd, con));
-        auto pid = spawnShell(cmd, stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir], ProcessConfig.none, con.workdir);
+        auto pid = spawnProcess(["bash", "-o", "pipefail", "-c", cmd], stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir],
+                                ProcessConfig.none, con.workdir);
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
