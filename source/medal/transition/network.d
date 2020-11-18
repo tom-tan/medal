@@ -50,7 +50,12 @@ protected:
         auto netConfig = config.inherits(con, true);
 
         logger.info(startMsg(initBe, netConfig));
-        scope(failure) logger.critical(failureMsg(initBe, netConfig, "Unknown error"));
+        scope(failure)
+        {
+            auto msg = "Unknown error";
+            logger.critical(failureMsg(initBe, netConfig, msg));
+            send(networkTid, TransitionFailed(initBe, msg));
+        }
         auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe, netConfig, logger);
         if (retBe)
@@ -178,6 +183,12 @@ protected:
         logger.trace(startMsg(initBe, con));
 
         auto c = config.inherits(con);
+        scope(failure)
+        {
+            auto msg = "Unknown error";
+            logger.critical(failureMsg(initBe, c, msg));
+            send(networkTid, TransitionFailed(initBe, msg));
+        }
 
         auto portedBe = port(initBe, inputPorts);
         logger.info(inputPortMsg(initBe, portedBe, con, c));

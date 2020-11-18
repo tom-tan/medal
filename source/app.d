@@ -88,7 +88,8 @@ EOS".outdent[0..$-1])(args[0].baseName);
         }
     }
     mkdirRecurse(tmpdir);
-    scope(exit) {
+    scope(exit)
+    {
         if (!leaveTmpdir)
         {
             import std.file : rmdirRecurse;
