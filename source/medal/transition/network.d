@@ -50,7 +50,7 @@ protected:
         auto netConfig = config.inherits(con, true);
 
         logger.info(startMsg(initBe, netConfig));
-        scope(failure) logger.critical(failureMsg(initBe, netConfig, "internal transition failed"));
+        scope(failure) logger.critical(failureMsg(initBe, netConfig, "Unknown error"));
         auto engine = Engine(transitions, stopGuard);
         auto retBe = engine.run(initBe, netConfig, logger);
         if (retBe)

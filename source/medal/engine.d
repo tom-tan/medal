@@ -111,6 +111,7 @@ struct Engine
         import std.variant : Variant;
 
         logger.trace(startMsg(initBe, config));
+        scope(failure) logger.critical(failureMsg(initBe, config, "Unknown failure"));
 
         if (!config.reuseParentTmpdir && !config.tmpdir.empty)
         {

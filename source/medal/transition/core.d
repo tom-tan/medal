@@ -9,6 +9,7 @@ import medal.config : Config;
 import medal.logger : Logger, sharedLog;
 
 import std.concurrency : Tid;
+import std.json : JSONValue;
 
 version(unittest)
 shared static this()
@@ -454,6 +455,7 @@ Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Conf
 {
     import core.exception : AssertError;
     import std.concurrency : send, spawn;
+    import std.format : format;
 
     return spawn((in Transition tr, in BindingElement be, Tid tid, Config con, shared Logger logger) {
         try
@@ -462,11 +464,27 @@ Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Conf
         }
         catch(Exception e)
         {
+            (cast()logger).critical(criticalMsg(tr, be, con, format!"Unknown exception: %s"(e)));
             send(tid, cast(shared)e);
         }
         catch(AssertError e)
         {
+            (cast()logger).critical(criticalMsg(tr, be, con, format!"Assersion failure: %s"(e)));
             send(tid, cast(shared)e);
         }
     }, tr, be, tid, con, cast(shared)logger);
+}
+
+JSONValue criticalMsg(in Transition tr, in BindingElement be, in Config con, in string cause) pure @safe
+{
+    import std.conv : to;
+
+    JSONValue ret;
+    ret["event"] = "critical";
+    ret["tag"] = con.tag;
+    ret["name"] = tr.name;
+    ret["in"] = be.tokenElements.to!(string[string]);
+    ret["success"] = false;
+    ret["cause"] = cause;
+    return ret;
 }
