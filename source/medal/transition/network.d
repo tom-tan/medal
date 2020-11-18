@@ -25,11 +25,17 @@ immutable class NetworkTransition_: Transition
 {
     ///
     this(in string name, in Guard g1, in Guard g2, in Transition[] trs,
-         immutable Config con = Config.init) @nogc nothrow pure @safe
+         immutable Config con = Config.init) nothrow pure @safe
     in(!trs.empty)
     do 
     {
-        super(name, g1, ArcExpressionFunction.init);
+        import std.algorithm : map;
+        import std.array : assocArray;
+        import std.exception : assumeUnique;
+        import std.typecons : tuple;
+
+        auto aef = g2.byKey.map!(p => tuple(p, OutputPattern.init)).assocArray;
+        super(name, g1, () @trusted { return aef.assumeUnique; }());
         transitions = trs;
         stopGuard = g2;
         config = con;
@@ -158,10 +164,15 @@ immutable class InvocationTransition_: Transition
     ///
     this(in string name, in Guard g, 
          immutable Place[Place] inPorts, immutable Place[Place] outPorts,
-         Transition tr, immutable Config con = Config.init) @nogc nothrow pure @safe
-    do 
+         Transition tr, immutable Config con = Config.init) nothrow pure @trusted
     {
-        super(name, g, ArcExpressionFunction.init);
+        import std.algorithm : map;
+        import std.array : assocArray;
+        import std.exception : assumeUnique;
+        import std.typecons : tuple;
+
+        auto aef = outPorts.byValue.map!(p => tuple(cast()p, OutputPattern.init)).assocArray;
+        super(name, g, aef.assumeUnique);
         inputPorts = inPorts;
         outputPorts = outPorts;
         subTransition = tr;
