@@ -45,12 +45,7 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         logger.info(startMsg(be, con));
-        scope(failure)
-        {
-            auto msg = "unknown error";
-            logger.critical(failureMsg(be, command, con, "unknown error"));
-            send(networkTid, TransitionFailed(be, msg));
-        }
+        scope(failure) logger.critical(failureMsg(be, command, con, "Unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
         auto stdoutPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].type == PatternType.Stdout);
