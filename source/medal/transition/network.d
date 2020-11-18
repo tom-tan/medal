@@ -102,7 +102,7 @@ private:
         import std.conv : to;
 
         JSONValue ret;
-        ret["evente"] = "end";
+        ret["event"] = "end";
         ret["transition-type"] = "network";
         ret["tag"] = con.tag;
         ret["name"] = name;
