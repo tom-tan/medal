@@ -99,7 +99,7 @@ immutable class ShellCommandTransition_: Transition
 
         auto cmd = commandWith(command, be, files);
         logger.trace(constructMsg(be, cmd, con));
-        auto pid = spawnProcess(["bash", "-o", "pipefail", "-c", cmd], stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir],
+        auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir],
                                 ProcessConfig.none, con.workdir);
 
 		spawn((shared Pid pid) {
