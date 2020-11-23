@@ -3,7 +3,11 @@
  * Copyright: © 2020 Tomoya Tanjo
  * License: Apache-2.0
  */
+import dyaml : YAMLException;
+
+import medal.exception : LoadError;
 import medal.message : TransitionSucceeded;
+
 import std.json : JSONValue;
 
 int main(string[] args)
@@ -13,7 +17,7 @@ int main(string[] args)
     import medal.loader : loadBindingElement, loadTransition;
     import medal.logger : JSONLogger, LogLevel, sharedLog;
     import medal.message : SignalSent, TransitionFailed;
-    import medal.transition.core : BindingElement, spawnFire;
+    import medal.transition.core : BindingElement, spawnFire, Transition;
     import std.concurrency : receive, thisTid;
     import std.file : exists, mkdirRecurse;
     import std.format : format;
@@ -115,14 +119,29 @@ EOS".outdent[0..$-1])(args[0].baseName);
         sharedLog.critical(failureMsg("Network file is not found: "~netFile));
         return 1;
     }
-    Node netRoot = Loader.fromFile(netFile).load;
-    auto tr = loadTransition(netRoot, netFile);
+    Node netRoot;
+    Rebindable!Transition tr;
+    try
+    {
+        netRoot = Loader.fromFile(netFile).load;
+        tr = loadTransition(netRoot, netFile);
+    }
+    catch(LoadError e)
+    {
+        sharedLog.critical(failureMsg(e));
+        return 1;
+    }
+    catch(YAMLException e)
+    {
+        sharedLog.critical(failureMsg(e));
+        return 1;
+    }
 
     Rebindable!BindingElement initBe;
     if (initFile.exists)
     {
         Node initRoot = Loader.fromFile(initFile).load;
-        initBe = loadBindingElement(initRoot);
+        initBe = loadBindingElement(initRoot, initFile);
     }
     else if (initFile.empty)
     {
@@ -181,5 +200,25 @@ JSONValue failureMsg(in string cause)
     ret["sender"] = "medal";
     ret["success"] = false;
     ret["cause"] = cause;
+    return ret;
+}
+
+JSONValue failureMsg(in YAMLException e)
+{
+    JSONValue ret;
+    ret["sender"] = "medal.loader";
+    ret["success"] = false;
+    ret["cause"] = e.msg;
+    ret["file"] = e.file;
+    return ret;
+}
+
+JSONValue failureMsg(in LoadError e)
+{
+    JSONValue ret;
+    ret["sender"] = "medal.loader";
+    ret["success"] = false;
+    ret["cause"] = e.msg;
+    ret["file"] = e.file;
     return ret;
 }
