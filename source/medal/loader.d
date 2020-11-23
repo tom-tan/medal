@@ -17,7 +17,7 @@ Transition loadTransition(Node node, string file) @safe
 {
     import std.exception : enforce;
 
-    auto type = (*enforce("type" in node)).as!string;
+    auto type = (*enforce("type" in node)).get!string;
     switch(type)
     {
     case "shell":
@@ -65,7 +65,7 @@ EOS";
 ///
 Transition loadShellCommandTransition(Node node) @safe
 in("type" in node)
-in(node["type"].as!string == "shell")
+in(node["type"].get!string == "shell")
 do
 {
     import medal.transition.shell : ShellCommandTransition;
@@ -73,7 +73,7 @@ do
     import std.range :empty;
 
     auto name = "name" in node ? node["name"].get!string : "";
-    auto command = (*enforce("command" in node)).as!string;
+    auto command = (*enforce("command" in node)).get!string;
     enforce(!command.empty);
     auto g = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
@@ -85,7 +85,7 @@ do
 ///
 Transition loadNetworkTransition(Node node, string file) @safe
 in("type" in node)
-in(node["type"].as!string == "network")
+in(node["type"].get!string == "network")
 do
 {
     import medal.transition.network : NetworkTransition;
@@ -114,7 +114,7 @@ do
 
 Transition loadInvocationTransition(Node node, string file) @safe
 in("type" in node)
-in(node["type"].as!string == "invocation")
+in(node["type"].get!string == "invocation")
 do
 {
     import dyaml : Loader;
@@ -157,8 +157,8 @@ Guard loadGuard(Node node) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = (*enforce("place" in n)).as!string;
-                        auto pat = (*enforce("pattern" in n)).as!string;
+                        auto pl = (*enforce("place" in n)).get!string;
+                        auto pat = (*enforce("pattern" in n)).get!string;
                         return tuple(Place(pl), InputPattern(pat));
                     })
                     .assocArray;
@@ -174,9 +174,9 @@ Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node) @trusted
     Place[Place] mapping;
     foreach(Node n; node)
     {
-        auto pl = Place((*enforce("place" in n)).as!string);
-        auto pat = InputPattern((*enforce("pattern" in n)).as!string);
-        auto p = Place((*enforce("port-to" in n)).as!string);
+        auto pl = Place((*enforce("place" in n)).get!string);
+        auto pat = InputPattern((*enforce("pattern" in n)).get!string);
+        auto p = Place((*enforce("port-to" in n)).get!string);
         guard[pl] = pat;
         mapping[pl] = p;
     }
@@ -192,8 +192,8 @@ immutable(Place[Place]) loadOutputPort(Node node) @trusted
 
     auto port = node.sequence
                     .map!((n) {
-                        auto from = Place((*enforce("place" in n)).as!string);
-                        auto to = Place((*enforce("port-to" in n)).as!string);
+                        auto from = Place((*enforce("place" in n)).get!string);
+                        auto to = Place((*enforce("port-to" in n)).get!string);
                         return tuple(from, to);
                     })
                     .assocArray;
@@ -224,8 +224,8 @@ ArcExpressionFunction loadArcExpressionFunction(Node node) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = (*enforce("place" in n)).as!string;
-                        auto pat = (*enforce("pattern" in n)).as!string;
+                        auto pl = (*enforce("place" in n)).get!string;
+                        auto pat = (*enforce("pattern" in n)).get!string;
                         return tuple(Place(pl), OutputPattern(pat));
                     })
                     .assocArray;
@@ -241,8 +241,8 @@ BindingElement loadBindingElement(Node node) @safe
     import std.typecons : tuple;
 
     auto tokenElems = node.mapping
-                          .map!(p => tuple(Place(p.key.as!string),
-                                           new Token(p.value.as!string)))
+                          .map!(p => tuple(Place(p.key.get!string),
+                                           new Token(p.value.get!string)))
                           .assocArray;
     return new BindingElement(() @trusted { 
         return tokenElems.assumeUnique; 
