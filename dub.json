@@ -9,7 +9,7 @@
 	"targetType": "executable",
 	"targetPath": "bin",
 	"dependencies": {
-		"dyaml": "~>0.8.2"
+		"dyaml": "~>0.8.3"
 	},
 	"buildTypes": {
 		"release-static": {
