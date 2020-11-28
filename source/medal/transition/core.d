@@ -23,30 +23,27 @@ shared static this()
 @safe struct Place
 {
     ///
-    this(string n, string ns = "") inout @nogc nothrow pure
+    this(string n) inout @nogc nothrow pure
     {
-        namespace = ns;
         name = n;
     }
 
     size_t toHash() const @nogc nothrow pure
     {
-        return name.hashOf(namespace.hashOf);
+        return name.hashOf;
     }
 
     bool opEquals(ref const Place other) const @nogc nothrow pure
     {
-        return namespace == other.namespace && name == other.name;
+        return name == other.name;
     }
 
     ///
-    string toString() const nothrow pure
+    string toString() const @nogc nothrow pure
     {
-        import std.range : empty;
-        return namespace.empty ? name : namespace~"::"~name;
+        return name;
     }
 
-    string namespace;
     string name;
     // Type type
 }
