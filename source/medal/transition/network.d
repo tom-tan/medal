@@ -134,6 +134,7 @@ unittest
     import medal.transition.shell : ShellCommandTransition;
 
     import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+    import std.conv : to;
     import std.variant : Variant;
 
     immutable aef = [
@@ -152,7 +153,7 @@ unittest
     auto tid = spawnFire(net, new BindingElement([Place("foo"): new Token("yahoo")]), thisTid);
     scope(exit)
     {
-        assert(tid is receiveOnly!LinkTerminated.tid);
+        assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
     }
     receive(
         (TransitionSucceeded ts) {

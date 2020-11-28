@@ -185,6 +185,7 @@ immutable class ShellCommandTransition_: Transition
     {
         import medal.message : TransitionSucceeded;
         import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.conv : to;
         import std.variant : Variant;
 
         auto sct = new ShellCommandTransition("", "true", Guard.init,
@@ -192,7 +193,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
         {
-            assert(tid is receiveOnly!LinkTerminated.tid);
+            assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
         receive(
             (TransitionSucceeded ts) {
@@ -207,6 +208,7 @@ immutable class ShellCommandTransition_: Transition
     {
         import medal.message : TransitionFailed;
         import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.conv : to;
         import std.variant : Variant;
 
         auto sct = new ShellCommandTransition("", "false", Guard.init,
@@ -214,7 +216,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
         {
-            assert(tid is receiveOnly!LinkTerminated.tid);
+            assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
         receive(
             (TransitionFailed tf) {
@@ -240,7 +242,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
         {
-            assert(tid is receiveOnly!LinkTerminated.tid);
+            assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
         receive(
             (TransitionSucceeded ts) {
@@ -254,6 +256,7 @@ immutable class ShellCommandTransition_: Transition
     {
         import medal.message : TransitionSucceeded;
         import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.conv : to;
         import std.variant : Variant;
 
         immutable aef = [
@@ -263,7 +266,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
         {
-            assert(tid is receiveOnly!LinkTerminated.tid);
+            assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
         receive(
             (TransitionSucceeded ts) {
@@ -290,6 +293,7 @@ immutable class ShellCommandTransition_: Transition
         import core.sys.posix.signal: SIGINT;
         import medal.message : SignalSent, TransitionFailed;
         import std.concurrency : LinkTerminated, receiveOnly, receiveTimeout, send, thisTid;
+        import std.conv : to;
         import std.datetime : seconds;
         import std.variant : Variant;
 
@@ -300,7 +304,7 @@ immutable class ShellCommandTransition_: Transition
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
         {
-            assert(tid is receiveOnly!LinkTerminated.tid);
+            assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
