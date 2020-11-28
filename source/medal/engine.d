@@ -106,7 +106,9 @@ struct Engine
     ///
     BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
-        import std.concurrency : receive, send, thisTid;
+        import std.concurrency : LinkTerminated, receive, send, thisTid;
+        import std.container.rbtree : redBlackTree;
+        import std.conv : to;
         import std.typecons : Rebindable;
         import std.variant : Variant;
 
@@ -126,6 +128,7 @@ struct Engine
         }
 
         auto running = true;
+        auto trTids = redBlackTree!(((in Tid a, in Tid b) => a.to!string < b.to!string), Tid);
         Rebindable!(typeof(return)) ret;
         send(thisTid, TransitionSucceeded(initBe));
         while (running)
@@ -140,6 +143,7 @@ struct Engine
                         {
                             store.remove(nextBe);
                             auto tid = spawnFire(tr, nextBe, thisTid, config, logger);
+                            trTids.insert(tid);
                             logger.trace(fireMsg(tr, nextBe, tid, config));
                         }
                     }
@@ -157,10 +161,19 @@ struct Engine
                     ret = ews.bindingElement;
                     running = false;
                 },
+                (LinkTerminated lt) {
+                    trTids.removeKey(lt.tid);
+                },
                 (Variant v) {
                     running = false;
                 },
             );
+        }
+        while (!trTids.empty)
+        {
+            import std.concurrency : receiveOnly;
+            auto recv = receiveOnly!LinkTerminated;
+            trTids.removeKey(recv.tid);
         }
         logger.trace(successMsg(ret, config));
         return ret;

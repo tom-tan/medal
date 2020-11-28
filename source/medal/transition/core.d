@@ -454,10 +454,10 @@ alias Transition = immutable Transition_;
 Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Config.init, Logger logger = sharedLog)
 {
     import core.exception : AssertError;
-    import std.concurrency : send, spawn;
+    import std.concurrency : send, spawnLinked;
     import std.format : format;
 
-    return spawn((in Transition tr, in BindingElement be, Tid tid, Config con, shared Logger logger) {
+    return spawnLinked((in Transition tr, in BindingElement be, Tid tid, Config con, shared Logger logger) {
         try
         {
             tr.fire(be, tid, con, cast()logger);

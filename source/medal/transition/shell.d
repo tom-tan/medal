@@ -184,12 +184,16 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionSucceeded;
-        import std.concurrency : receive, thisTid;
+        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
         import std.variant : Variant;
 
         auto sct = new ShellCommandTransition("", "true", Guard.init,
                                               ArcExpressionFunction.init);
-        spawnFire(sct, new BindingElement, thisTid);
+        auto tid = spawnFire(sct, new BindingElement, thisTid);
+        scope(exit)
+        {
+            assert(tid is receiveOnly!LinkTerminated.tid);
+        }
         receive(
             (TransitionSucceeded ts) {
                 assert(ts.tokenElements.empty);
@@ -202,12 +206,16 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionFailed;
-        import std.concurrency : receive, thisTid;
+        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
         import std.variant : Variant;
 
         auto sct = new ShellCommandTransition("", "false", Guard.init,
                                               ArcExpressionFunction.init);
-        spawnFire(sct, new BindingElement, thisTid);
+        auto tid = spawnFire(sct, new BindingElement, thisTid);
+        scope(exit)
+        {
+            assert(tid is receiveOnly!LinkTerminated.tid);
+        }
         receive(
             (TransitionFailed tf) {
                 assert(tf.tokenElements.empty);
@@ -221,7 +229,7 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionSucceeded;
-        import std.concurrency : receive, thisTid;
+        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
         import std.conv : to;
         import std.variant : Variant;
 
@@ -229,7 +237,11 @@ immutable class ShellCommandTransition_: Transition
             Place("foo"): OutputPattern(SpecialPattern.Return),
         ];
         auto sct = new ShellCommandTransition("", "true", Guard.init, aef);
-        spawnFire(sct, new BindingElement, thisTid);
+        auto tid = spawnFire(sct, new BindingElement, thisTid);
+        scope(exit)
+        {
+            assert(tid is receiveOnly!LinkTerminated.tid);
+        }
         receive(
             (TransitionSucceeded ts) {
                 assert(ts.tokenElements == [Place("foo"): new Token("0")]);
@@ -241,14 +253,18 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionSucceeded;
-        import std.concurrency : receive, thisTid;
+        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
         import std.variant : Variant;
 
         immutable aef = [
             Place("foo"): OutputPattern(SpecialPattern.Stdout),
         ];
         auto sct = new ShellCommandTransition("", "echo bar", Guard.init, aef);
-        spawnFire(sct, new BindingElement, thisTid);
+        auto tid = spawnFire(sct, new BindingElement, thisTid);
+        scope(exit)
+        {
+            assert(tid is receiveOnly!LinkTerminated.tid);
+        }
         receive(
             (TransitionSucceeded ts) {
                 if (auto token = Place("foo") in ts.tokenElements.tokenElements)
@@ -273,7 +289,7 @@ immutable class ShellCommandTransition_: Transition
     {
         import core.sys.posix.signal: SIGINT;
         import medal.message : SignalSent, TransitionFailed;
-        import std.concurrency : receiveTimeout, send, thisTid;
+        import std.concurrency : LinkTerminated, receiveOnly, receiveTimeout, send, thisTid;
         import std.datetime : seconds;
         import std.variant : Variant;
 
@@ -282,6 +298,10 @@ immutable class ShellCommandTransition_: Transition
         ];
         auto sct = new ShellCommandTransition("", "sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
+        scope(exit)
+        {
+            assert(tid is receiveOnly!LinkTerminated.tid);
+        }
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
             (TransitionFailed tf) {

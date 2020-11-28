@@ -133,7 +133,7 @@ unittest
     import medal.message : TransitionSucceeded;
     import medal.transition.shell : ShellCommandTransition;
 
-    import std.concurrency : receive, thisTid;
+    import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
     import std.variant : Variant;
 
     immutable aef = [
@@ -149,7 +149,11 @@ unittest
     ];
     auto net = new NetworkTransition("", g, portGuard, trs);
 
-    spawnFire(net, new BindingElement([Place("foo"): new Token("yahoo")]), thisTid);
+    auto tid = spawnFire(net, new BindingElement([Place("foo"): new Token("yahoo")]), thisTid);
+    scope(exit)
+    {
+        assert(tid is receiveOnly!LinkTerminated.tid);
+    }
     receive(
         (TransitionSucceeded ts) {
             assert(ts.tokenElements == [Place("bar"): new Token("0")]);
