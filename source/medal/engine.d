@@ -128,7 +128,7 @@ struct Engine
         auto running = true;
         Rebindable!(typeof(return)) ret;
         send(thisTid, TransitionSucceeded(initBe));
-        while(running)
+        while (running)
         {
             receive(
                 (TransitionSucceeded ts) {
