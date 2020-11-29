@@ -87,7 +87,7 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
     import std.array : array;
     import std.format : format;
     import std.range : empty;
-    import std.regex : ctRegex, matchAll;
+    import std.regex : ctRegex, matchAll, matchFirst;
 
     auto gPlaces = g.byKey.array;
     auto aefPlaces = aef.byKey.array;
@@ -113,6 +113,17 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
             import medal.exception : LoadError;
             throw new LoadError(format!"Invalid place `%s`"(pl), node, file);
         }
+    }
+    if (cmd.matchFirst(ctRegex!(r"\$\(.+\)", "m")) ||
+        cmd.matchFirst(ctRegex!(r"`.+`", "m")))
+    {
+        import medal.logger : sharedLog;
+        import std.json : JSONValue;
+        JSONValue msg;
+        msg["sender"] = "medal.loader";
+        msg["message"] = "Command substitutions may hide unintended execution failures";
+        msg["file"] = file;
+        sharedLog.warning(msg);
     }
 }
 
