@@ -83,13 +83,11 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
 {
     import medal.exception : loadEnforce;
     
-    import std.algorithm : canFind, find;
+    import std.algorithm : canFind;
     import std.array : array;
     import std.format : format;
-    import std.range : empty, front;
+    import std.range : empty;
     import std.regex : ctRegex, matchAll;
-
-    immutable regex = ctRegex!(r"~(~~)*\(([^)]+)\)", "m");
 
     auto gPlaces = g.byKey.array;
     auto aefPlaces = aef.byKey.array;
@@ -97,7 +95,7 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
     loadEnforce(!cmd.empty, "`command` field should not be an empty string",
                 node, file);
 
-    foreach(m; cmd.matchAll(regex))
+    foreach(m; cmd.matchAll(ctRegex!(r"~(~~)*\(([^)]+)\)", "m")))
     {
         auto pl = Place(m[2]);
         if (auto p = gPlaces.canFind(pl))
