@@ -65,19 +65,57 @@ do
 
     auto name = "name" in node ? node["name"].get!string : "";
 
-    auto cmdNode = *loadEnforce("command" in node,
-                                "`command` field is necessary for shell transitions",
-                                node, file);
-    auto command = cmdNode.get!string;
-    loadEnforce(!command.empty, "`command` field should not be an empty string",
-                cmdNode, file);
-
     auto g = "in" in node ? loadGuard(node["in"], file) : Guard.init;
 
     auto aef = "out" in node ? loadArcExpressionFunction(node["out"], file)
                              : ArcExpressionFunction.init;
 
+    auto cmdNode = *loadEnforce("command" in node,
+                                "`command` field is necessary for shell transitions",
+                                node, file);
+    auto command = cmdNode.get!string;
+    enforceValidCommand(command, g, aef, cmdNode, file);
+
     return new ShellCommandTransition(name, command, g, aef);
+}
+
+void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node, string file) @safe
+{
+    import medal.exception : loadEnforce;
+    
+    import std.algorithm : canFind, find;
+    import std.array : array;
+    import std.format : format;
+    import std.range : empty, front;
+    import std.regex : ctRegex, matchAll;
+
+    immutable regex = ctRegex!(r"~(~~)*\(([^)]+)\)", "m");
+
+    auto gPlaces = g.byKey.array;
+    auto aefPlaces = aef.byKey.array;
+
+    loadEnforce(!cmd.empty, "`command` field should not be an empty string",
+                node, file);
+
+    foreach(m; cmd.matchAll(regex))
+    {
+        auto pl = Place(m[2]);
+        if (auto p = gPlaces.canFind(pl))
+        {
+            continue;
+        }
+        else if (aefPlaces.canFind(pl))
+        {
+            loadEnforce(aef[pl].type == PatternType.File,
+                        format!"Refering the output place `%s` that is not `FILE`"(pl),
+                        node, file);
+        }
+        else
+        {
+            import medal.exception : LoadError;
+            throw new LoadError(format!"Invalid place `%s`"(pl), node, file);
+        }
+    }
 }
 
 ///
@@ -347,19 +385,19 @@ Place loadPlace(Node node) @safe
     import std.format : format;
     import std.string : indexOfAny;
 
-    enum prohibited = r"/\ '`$(){}[]:;*!?|<>#,"~'"'~'\0';
+    enum prohibited = r"/\ '`$(){}[]:;*!?|<>#,"~'"'~'\0'~'\n';
 
     auto pl = node.get!string;
 
     auto idx = pl.indexOfAny(prohibited);
-    loadEnforce(idx == -1, format!"Invalid charactter `%s` was found in `place` field"(pl[idx]), node, "");
+    loadEnforce(idx == -1, format!"Invalid charactter `%s` was found in the place name `%s`"(pl[idx], pl), node, "");
 
     loadEnforce(pl != "." && pl != ".." && pl != "~",
-                format!"Invalid place name `%s` was found in `place` field"(pl), node, "");
+                format!"Invalid place name `%s`: its name is not allowed in medal"(pl), node, "");
     
-    loadEnforce(!pl.startsWith("."), "Place name should not start with `.`", node, "");
-    loadEnforce(!pl.startsWith("-"), "Place name should not start with `-`", node, "");
-    loadEnforce(!pl.endsWith("&"), "Place name should not end with `&`", node, "");
+    loadEnforce(!pl.startsWith("."), format!"Invalid place name `%s`: it should not start with `.`"(pl), node, "");
+    loadEnforce(!pl.startsWith("-"), format!"Invalid place name `%s`: it should not start with `-`"(pl), node, "");
+    loadEnforce(!pl.endsWith("&"), format!"Invalid place name `%s`: it should not end with `&`"(pl), node, "");
 
     return Place(pl);
 }
