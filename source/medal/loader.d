@@ -177,11 +177,11 @@ Guard loadGuard(Node node, string file) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = (*loadEnforce("place" in n, "`place` field is needed",
-                                                n, file)).get!string;
+                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed",
+                                                         n, file));
                         auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed",
                                                  n, file)).get!string;
-                        return tuple(Place(pl), InputPattern(pat));
+                        return tuple(pl, InputPattern(pat));
                     })
                     .assocArray;
     return () @trusted { return pats.assumeUnique; }();
@@ -198,9 +198,9 @@ Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node, string file) @tru
     Place[Place] mapping;
     foreach(Node n; node)
     {
-        auto pl = Place((*loadEnforce("place" in n, "`place` field is needed", n, file)).get!string);
+        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
         auto pat = InputPattern((*loadEnforce("pattern" in n, "`pattern` field is needed", n, file)).get!string);
-        auto p = Place((*loadEnforce("port-to" in n, "`port-to` field is needed", n, file)).get!string);
+        auto p = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n, file));
         guard[pl] = pat;
         mapping[pl] = p;
     }
@@ -218,8 +218,8 @@ immutable(Place[Place]) loadOutputPort(Node node, string file) @trusted
 
     auto port = node.sequence
                     .map!((n) {
-                        auto from = Place((*loadEnforce("place" in n, "`place` field is needed", n, file)).get!string);
-                        auto to = Place((*loadEnforce("port-to" in n, "`port-to` field is needed", n, file)).get!string);
+                        auto from = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
+                        auto to = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n, file));
                         return tuple(from, to);
                     })
                     .assocArray;
@@ -252,9 +252,9 @@ ArcExpressionFunction loadArcExpressionFunction(Node node, string file) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = (*loadEnforce("place" in n, "`place` field is needed", n, file)).get!string;
+                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
                         auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n, file)).get!string;
-                        return tuple(Place(pl), OutputPattern(pat));
+                        return tuple(pl, OutputPattern(pat));
                     })
                     .assocArray;
     return () @trusted { return pats.assumeUnique; }();
@@ -269,7 +269,7 @@ BindingElement loadBindingElement(Node node, string file) @safe
     import std.typecons : tuple;
 
     auto tokenElems = node.mapping
-                          .map!(p => tuple(Place(p.key.get!string),
+                          .map!(p => tuple(loadPlace(p.key),
                                            new Token(p.value.get!string)))
                           .assocArray;
     return new BindingElement(() @trusted { 
@@ -337,4 +337,29 @@ in("configuration" in node)
         tmpdir: tmpdir,
     };
     return ret;
+}
+
+Place loadPlace(Node node) @safe
+{
+    import medal.exception : loadEnforce;
+
+    import std.algorithm : endsWith, startsWith;
+    import std.format : format;
+    import std.string : indexOfAny;
+
+    enum prohibited = r"/\ '`$(){}[]:;*!?|<>#,"~'"'~'\0';
+
+    auto pl = node.get!string;
+
+    auto idx = pl.indexOfAny(prohibited);
+    loadEnforce(idx == -1, format!"Invalid charactter `%s` was found in `place` field"(pl[idx]), node, "");
+
+    loadEnforce(pl != "." && pl != ".." && pl != "~",
+                format!"Invalid place name `%s` was found in `place` field"(pl), node, "");
+    
+    loadEnforce(!pl.startsWith("."), "Place name should not start with `.`", node, "");
+    loadEnforce(!pl.startsWith("-"), "Place name should not start with `-`", node, "");
+    loadEnforce(!pl.endsWith("&"), "Place name should not end with `&`", node, "");
+
+    return Place(pl);
 }
