@@ -227,13 +227,13 @@ private:
     {
         import std.algorithm : map;
         import std.array : assocArray, byPair;
-        import std.exception : assumeUnique, enforce;
+        import std.exception : assumeUnique;
         import std.typecons : tuple;
 
         auto ported = be.tokenElements
                         .byPair
                         .map!((p) {
-                            auto mapped = *enforce(p.key in mapping);
+                            auto mapped = mapping[p.key];
                             return tuple(cast()mapped, cast()p.value);
                         })
                         .assocArray;
