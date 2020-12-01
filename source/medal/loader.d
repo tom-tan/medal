@@ -201,15 +201,64 @@ do
     auto subNode = Loader.fromFile(subFile).load;
     auto tr = loadTransition(subNode, subFile);
 
-    loadEnforce("in" in node, "`in` field is needed in invocation transitions",
-                node, file);
-    auto itpl = loadPortGuard(node["in"], file);
+    auto inode = loadEnforce("in" in node, "`in` field is needed in invocation transitions",
+                             node, file);
+    auto itpl = loadPortGuard(*inode, file);
+    enforceInPortIsValid(itpl[1], tr.guard, *inode, file);
 
-    loadEnforce("out" in node, "`out` field is needed in invocation transitions",
-                node, file);
-    auto oPort = loadOutputPort(node["out"], file);
+    auto onode = loadEnforce("out" in node, "`out` field is needed in invocation transitions",
+                             node, file);
+    auto oPort = loadOutputPort(*onode, file);
+    enforceOutPortIsValid(oPort, tr.arcExpFun, *onode, file);
 
     return new InvocationTransition(name, itpl[0], itpl[1], oPort, tr, con);
+}
+
+void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node, string file) @safe
+{
+    import medal.exception : loadEnforce;
+
+    import std.algorithm : map, setDifference, sort;
+    import std.array : array;
+    import std.format : format;
+
+    auto portPlaces = ports.byValue
+                           .map!"a.name.dup"
+                           .array
+                           .sort()
+                           .array;
+    auto guardPlaces = guard.byKey
+                            .map!"a.name"
+                            .array
+                            .sort()
+                            .array;
+    auto pg = setDifference(portPlaces, guardPlaces);
+    loadEnforce(pg.empty, format!"Ports to non-existent places: %-(%s, %)"(pg), node, file);
+
+    auto gp = setDifference(guardPlaces, portPlaces);
+    loadEnforce(gp.empty, format!"Missing ports to: %-(%s, %)"(gp), node, file);
+}
+
+void enforceOutPortIsValid(in Place[Place] ports, ArcExpressionFunction aef, Node node, string file) @safe
+{
+    import medal.exception : loadEnforce;
+
+    import std.algorithm : map, setDifference, sort;
+    import std.array : array;
+    import std.format : format;
+
+    auto portPlaces = ports.byKey
+                           .map!"a.name.dup"
+                           .array
+                           .sort()
+                           .array;
+    auto aefPlaces = aef.byKey
+                        .map!"a.name"
+                        .array
+                        .sort()
+                        .array;
+    auto pa = setDifference(portPlaces, aefPlaces);
+    loadEnforce(pa.empty, format!"Ports from non-existent places: %-(%s, %)"(pa), node, file);
 }
 
 ///
@@ -331,7 +380,6 @@ in("configuration" in node)
     import medal.exception : loadEnforce;
 
     import std.algorithm : canFind;
-    import std.exception : assumeUnique, enforce;
 
     auto n = node["configuration"];
     string tag;
@@ -378,6 +426,7 @@ in("configuration" in node)
     typeof(return) ret = { 
         tag: tag, 
         environment: () @trusted {
+            import std.exception : assumeUnique;
             return environment.assumeUnique;
         }(),
         workdir: workdir,
