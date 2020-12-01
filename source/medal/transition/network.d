@@ -43,7 +43,7 @@ immutable class NetworkTransition_: Transition
 
 protected:
     ///
-    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
+    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog) const
     {
         import medal.engine : Engine;
         import medal.message : TransitionFailed, TransitionSucceeded;
@@ -186,7 +186,7 @@ immutable class InvocationTransition_: Transition
 
 protected:
     ///
-    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
+    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog) const
     {
         import medal.message;
         import std.concurrency: receive, send, thisTid;
@@ -223,7 +223,7 @@ protected:
     }
 
 private:
-    static BindingElement port(in BindingElement be, immutable Place[Place] mapping)
+    static BindingElement port(in BindingElement be, immutable Place[Place] mapping) nothrow pure @trusted
     {
         import std.algorithm : map;
         import std.array : assocArray, byPair;

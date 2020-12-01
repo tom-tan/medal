@@ -22,16 +22,16 @@ struct EngineWillStop
 }
 
 ///
-@safe immutable class EngineStopTransition_: Transition
+immutable class EngineStopTransition_: Transition
 {
     ///
-    this(in Guard g) @nogc nothrow pure
+    this(in Guard g) @nogc nothrow pure @safe
     {
         super("engine-stop", g, ArcExpressionFunction.init);
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = null) const @trusted
+    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = null) const
     {
         import std.concurrency : send;
 
@@ -40,7 +40,7 @@ struct EngineWillStop
         send(networkTid, EngineWillStop(be));
     }
 
-    static JSONValue oneShotMsg(in BindingElement be, in Config con)
+    static JSONValue oneShotMsg(in BindingElement be, in Config con) pure @safe
     {
         import std.conv : to;
 
@@ -53,7 +53,7 @@ struct EngineWillStop
         return ret;
     }
 
-    static JSONValue failureMsg(in BindingElement be, in Config con, in string cause)
+    static JSONValue failureMsg(in BindingElement be, in Config con, in string cause) pure @safe
     {
         import std.conv : to;
 
@@ -208,7 +208,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue startMsg(in BindingElement be, in Config con) @trusted
+    JSONValue startMsg(in BindingElement be, in Config con) pure @trusted
     {
         import std.conv : to;
 
@@ -220,7 +220,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue successMsg(in BindingElement be, in Config con) @trusted
+    JSONValue successMsg(in BindingElement be, in Config con) pure @trusted
     {
         import std.conv : to;
 
@@ -233,7 +233,7 @@ struct Engine
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in Config con, in string cause = "") @trusted
+    JSONValue failureMsg(in BindingElement be, in Config con, in string cause = "") pure @trusted
     {
         import std.conv : to;
 
