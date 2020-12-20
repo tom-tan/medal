@@ -137,15 +137,21 @@ struct Engine
                 (TransitionSucceeded ts) {
                     logger.trace(recvMsg(ts, config));
                     store.put(ts.tokenElements);
-                    foreach(tr; rule.transitions)
+                    auto candidates = rule.dispatch(ts.tokenElements);
+                    while (!candidates.empty)
                     {
-                        if (auto nextBe = tr.fireable(store))
+                        import std.range : front, popFront;
+
+                        auto c = candidates.front;
+                        if (auto be = c.fireable(store))
                         {
-                            store.remove(nextBe);
-                            auto tid = spawnFire(tr, nextBe, thisTid, config, logger);
+                            store.remove(be);
+                            auto tid = spawnFire(c, be, thisTid, config, logger);
                             trTids.insert(tid);
-                            logger.trace(fireMsg(tr, nextBe, tid, config));
+                            logger.trace(fireMsg(c, be, tid, config));
+                            continue;
                         }
+                        candidates.popFront;
                     }
                 },
                 (TransitionFailed tf) {
@@ -311,8 +317,6 @@ struct Store
         }
     }
 
-    // `dispatch(BindingElement) const pure` needs much duplication cost...
-
     string toString() const pure @safe
     {
         import std.conv : to;
@@ -330,15 +334,11 @@ struct Store
         transitions = trs;
     }
 
-    /+
-    auto dispatch(Store store, BindingElement trigger) const pure
+    ///
+    auto dispatch(BindingElement trigger) const
     {
-        return transitions.map!(t => t.fireable(store))
-                          .filter!(tuple => !tuple.isNull)
-                          .map!(tuple => tuple.get)
-                          .array;
-        // return tuple(Transition, BindingElement)[]
-    }+/
+        return transitions[];
+    }
 
     Transition[] transitions;
 }
