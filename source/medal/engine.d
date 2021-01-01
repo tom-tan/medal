@@ -11,9 +11,10 @@ import medal.message;
 import medal.transition.core;
 
 import std.algorithm : all, canFind;
-import std.concurrency : Tid;
+import std.concurrency : LinkTerminated, Tid;
 import std.json : JSONValue;
 import std.range : byPair, empty;
+import std.variant : Variant;
 
 ///
 struct EngineWillStop
@@ -106,11 +107,13 @@ struct Engine
     ///
     BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
-        import std.concurrency : LinkTerminated, receive, send, thisTid;
-        import std.container.rbtree : redBlackTree;
+        import std.concurrency : receive, send, thisTid;
+        import std.container.rbtree : RedBlackTree;
+        import std.container.array : Array;
+        import std.container.binaryheap : BinaryHeap;
+        import std.container.util : make;
         import std.conv : to;
         import std.typecons : Rebindable;
-        import std.variant : Variant;
 
         logger.trace(startMsg(initBe, config));
         scope(failure) logger.critical(failureMsg(initBe, config, "Unknown error"));
@@ -128,7 +131,9 @@ struct Engine
         }
 
         auto running = true;
-        auto trTids = redBlackTree!(((in Tid a, in Tid b) => a.to!string < b.to!string), Tid);
+        // https://issues.dlang.org/show_bug.cgi?id=21512
+        //auto trTids = make!(RedBlackTree!(Tid, (in Tid a, in Tid b) => a.to!string < b.to!string));
+        Tid[string] trTids;
         Rebindable!(typeof(return)) ret;
         send(thisTid, TransitionSucceeded(initBe));
         while (running)
@@ -147,7 +152,8 @@ struct Engine
                         {
                             store.remove(be);
                             auto tid = spawnFire(c, be, thisTid, config, logger);
-                            trTids.insert(tid);
+                            //trTids.insert(tid);
+                            trTids[tid.to!string] = tid;
                             logger.trace(fireMsg(c, be, tid, config));
                             continue;
                         }
@@ -156,33 +162,77 @@ struct Engine
                 },
                 (TransitionFailed tf) {
                     logger.trace(recvMsg(tf, config));
+                    store.put(tf.tokenElements);
                     running = false;
                 },
                 (in SignalSent sig) {
-                    // send sig to all transitions
+                    logger.trace(recvMsg(sig, config));
                     running = false;
                 },
                 (in EngineWillStop ews) {
-                    // send sig? to all transitions
+                    logger.trace(recvMsg(ews, config));
                     ret = ews.bindingElement;
                     running = false;
                 },
                 (LinkTerminated lt) {
-                    trTids.removeKey(lt.tid);
+                    logger.trace(recvMsg(lt, config));
+                    //trTids.removeKey(lt.tid);
+                    trTids.remove(lt.tid.to!string);
                 },
                 (Variant v) {
+                    import std.format : format;
+                    auto msg = format!"unknown message (%s)"(v);
+                    logger.critical(failureMsg(initBe, config, msg)); // TODO: fix
                     running = false;
                 },
             );
         }
-        while (!trTids.empty)
-        {
-            import std.concurrency : receiveOnly;
-            auto recv = receiveOnly!LinkTerminated;
-            trTids.removeKey(recv.tid);
-        }
+        import core.stdc.signal : SIGINT;
+        import std.algorithm : each;
+
+        trTids.byValue.each!(t => send(t, SignalSent(SIGINT)));
+        waitTransitions(trTids, config);
+
         logger.trace(successMsg(ret, config));
         return ret;
+    }
+
+    bool waitTransitions(ref Tid[string] tids, in Config con)
+    {
+        bool success = true;
+        while (!tids.empty)
+        {
+            import std.concurrency : receive;
+            receive(
+                (TransitionSucceeded ts) {
+                    //logger.trace(recvMsg(ts, con));
+                    store.put(ts.tokenElements);
+                },
+                (TransitionFailed tf) {
+                    //logger.trace(recvMsg(tf, con));
+                    store.put(tf.tokenElements);
+                    success = false;
+                },
+                (in SignalSent sig) {
+                    //logger.trace(recvMsg(sig, con)); // ignored
+                },
+                (in EngineWillStop ews) {
+                    //logger.trace(recvMsg(ews, config));
+                },
+                (LinkTerminated lt) {
+                    import std.conv : to;
+                    //logger.trace(recvMsg(lt, con));
+                    tids.remove(lt.tid.to!string);
+                },
+                (Variant v) {
+                    import std.format : format;
+                    auto msg = format!"unknown message (%s)"(v);
+                    //logger.critical(failureMsg(initBe, con, msg)); // TODO: fix
+                    success = false;
+                },
+            );
+        }
+        return success;
     }
 
     JSONValue recvMsg(in TransitionSucceeded ts, in Config con) @trusted
@@ -211,6 +261,44 @@ struct Engine
         ret["success"] = false;
         ret["thread-id"] = (cast()tf.tid).to!string[4..$-1];
         ret["cause"] = tf.cause;
+        return ret;
+    }
+
+    JSONValue recvMsg(in SignalSent ss, in Config con) @trusted
+    {
+        import std.format : format;
+
+        JSONValue ret;
+        ret["sender"] = "engine";
+        ret["event"] = "recv-signal";
+        ret["tag"] = con.tag;
+        ret["cause"] = format!"signal (%s) was caught"(ss.no);
+        return ret;
+    }
+
+    JSONValue recvMsg(in EngineWillStop ews, in Config con) @trusted
+    {
+        import std.conv : to;
+
+        JSONValue ret;
+        ret["sender"] = "engine";
+        ret["event"] = "recv-ews-msg";
+        ret["tag"] = con.tag;
+        ret["elems"] = ews.bindingElement.tokenElements.to!(string[string]);
+        ret["success"] = true;
+        return ret;
+    }
+
+    JSONValue recvMsg(LinkTerminated lt, in Config con) @trusted
+    {
+        import std.conv : to;
+
+        JSONValue ret;
+        ret["sender"] = "engine";
+        ret["event"] = "recv-lt";
+        ret["tag"] = con.tag;
+        ret["success"] = true;
+        ret["thread-id"] = lt.tid.to!string[4..$-1];
         return ret;
     }
 
