@@ -1,6 +1,6 @@
 #!/bin/sh
 
-dub build -b release
+dub build -b release || exit 1
 
 for ex in examples/*
 do
