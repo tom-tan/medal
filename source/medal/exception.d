@@ -25,3 +25,10 @@ class LoadError : Exception
         super(msg, file);
     }
 }
+
+///
+class SignalException : Exception
+{
+    import std.exception : basicExceptionCtors;
+    mixin basicExceptionCtors;
+}

@@ -8,8 +8,10 @@ module medal.main;
 import dyaml : YAMLException;
 
 import medal.exception : LoadError;
+import medal.logger : Logger;
 import medal.message : TransitionSucceeded;
 
+import std.concurrency : Tid;
 import std.json : JSONValue;
 
 int medalMain(string[] args)
@@ -162,6 +164,18 @@ EOS".outdent[0..$-1])(args[0].baseName);
     }
 
     auto mainTid = spawnFire(tr, initBe, thisTid, con, sharedLog);
+    auto handlerTid = spawnSignalHandler(sharedLog);
+    scope(failure)
+    {
+        import std.stdio;
+        stderr.writeln("Unknown error");
+    }
+    scope(exit)
+    {
+        import core.sys.posix.signal : kill, SIGTERM;
+        import std.process : thisProcessID;
+        kill(thisProcessID, SIGTERM);
+    }
 
     bool success;
     receive(
@@ -174,8 +188,20 @@ EOS".outdent[0..$-1])(args[0].baseName);
             success = false;
         },
         (SignalSent ss) {
+            import std.concurrency : send;
+
             sharedLog.info(failureMsg(format!"signal %s is sent"(ss.no)));
-            success = false;
+            send(mainTid, ss);
+            receive(
+                (TransitionSucceeded ts) {
+                    sharedLog.info(successMsg(ts));
+                    success = true;
+                },
+                (Variant v) {
+                    sharedLog.info(failureMsg(format!"transition returned with %s after the signal"(v)));
+                    success = false;
+                },
+            );
         },
         (Variant v) {
             sharedLog.critical(failureMsg(format!"Unintended object is received: %s"(v)));
@@ -223,4 +249,37 @@ JSONValue failureMsg(in LoadError e)
     ret["cause"] = e.msg;
     ret["file"] = e.file;
     return ret;
+}
+
+///
+Tid spawnSignalHandler(Logger logger)
+{
+    import core.sys.posix.signal : sigaddset, sigemptyset, sigprocmask, sigset_t, sigwait,
+                                   SIGINT, SIGTERM, SIG_BLOCK;
+
+    import medal.exception : SignalException;
+    import medal.message : SignalSent;
+
+    import std.concurrency : send, spawn, thisTid, receive, OwnerTerminated;
+    import std.exception : enforce;
+
+    sigset_t ss;
+    enforce!SignalException(sigemptyset(&ss) == 0);
+    enforce!SignalException(sigaddset(&ss, SIGINT) == 0);
+    enforce!SignalException(sigaddset(&ss, SIGTERM) == 0);
+    enforce!SignalException(sigprocmask(SIG_BLOCK, &ss, null) == 0);
+
+    auto tid = spawn((sigset_t ss) {
+        int signo;
+        auto ret = sigwait(&ss, &signo);
+        if (ret == 0)
+        {
+            send(thisTid, SignalSent(signo));
+        }
+        else
+        {
+            send(thisTid, new immutable SignalException("sigwait failed"));
+        }
+    }, ss);
+    return tid;
 }
