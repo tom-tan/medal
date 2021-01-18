@@ -163,19 +163,15 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 1;
     }
 
-    auto mainTid = spawnFire(tr, initBe, thisTid, con, sharedLog);
     auto handlerTid = spawnSignalHandler(sharedLog);
-    scope(failure)
-    {
-        import std.stdio;
-        stderr.writeln("Unknown error");
-    }
     scope(exit)
     {
-        import core.sys.posix.signal : kill, SIGTERM;
+        import core.sys.posix.signal : kill, SIGQUIT;
         import std.process : thisProcessID;
-        kill(thisProcessID, SIGTERM);
+
+        kill(thisProcessID, SIGQUIT);
     }
+    auto mainTid = spawnFire(tr, initBe, thisTid, con, sharedLog);
 
     bool success;
     receive(
@@ -254,32 +250,55 @@ JSONValue failureMsg(in LoadError e)
 ///
 Tid spawnSignalHandler(Logger logger)
 {
-    import core.sys.posix.signal : sigaddset, sigemptyset, sigprocmask, sigset_t, sigwait,
-                                   SIGINT, SIGTERM, SIG_BLOCK;
+    import core.sys.posix.signal : sigaddset, sigemptyset, pthread_sigmask, sigset_t,
+                                   SIGINT, SIGQUIT, SIGTERM, SIG_BLOCK;
 
     import medal.exception : SignalException;
-    import medal.message : SignalSent;
 
-    import std.concurrency : send, spawn, thisTid, receive, OwnerTerminated;
+    import std.concurrency : spawn;
     import std.exception : enforce;
 
     sigset_t ss;
     enforce!SignalException(sigemptyset(&ss) == 0);
     enforce!SignalException(sigaddset(&ss, SIGINT) == 0);
     enforce!SignalException(sigaddset(&ss, SIGTERM) == 0);
-    enforce!SignalException(sigprocmask(SIG_BLOCK, &ss, null) == 0);
+    enforce!SignalException(sigaddset(&ss, SIGQUIT) == 0);
+    enforce!SignalException(pthread_sigmask(SIG_BLOCK, &ss, null) == 0);
 
-    auto tid = spawn((sigset_t ss) {
+    auto tid = spawn((sigset_t ss, shared Logger l) {
+        Logger logger = cast()l;
+        scope(success) logger.trace("Handler succeeded");
+        scope(failure) logger.critical("Handler failed");
+
         int signo;
-        auto ret = sigwait(&ss, &signo);
-        if (ret == 0)
+        while (true)
         {
-            send(thisTid, SignalSent(signo));
+            import core.sys.posix.signal : sigwait;
+            import std.concurrency : send, ownerTid;
+
+            logger.trace("Waiting signals...");
+            auto ret = sigwait(&ss, &signo);
+            if (ret == 0)
+            {
+                import medal.message : SignalSent;
+                logger.trace("Recv: ", signo);
+                if (signo == SIGQUIT)
+                {
+                    // SIGQUIT is used to quit this thread
+                    logger.trace("break");
+                    break;
+                }
+                send(ownerTid, SignalSent(signo));
+            }
+            else
+            {
+                logger.critical("Fail to recv");
+                send(ownerTid, new immutable SignalException("sigwait failed"));
+                break;
+            }
         }
-        else
-        {
-            send(thisTid, new immutable SignalException("sigwait failed"));
-        }
-    }, ss);
+        logger.trace("Finish waiting signals");
+    }, ss, cast(shared)logger);
+
     return tid;
 }
