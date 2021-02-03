@@ -189,15 +189,24 @@ struct Engine
         }
         import core.stdc.signal : SIGINT;
         import std.algorithm : each;
+        import std.array : array;
 
-        trTids.byValue.each!(t => send(t, SignalSent(SIGINT)));
-        waitTransitions(trTids, config);
+        logger.trace("Start sending kill msgs to ", trTids.byValue.array);
+        foreach(t; trTids.byValue)
+        {
+            logger.trace("Send kill to ", t);
+            send(t, SignalSent(SIGINT));
+        }
+        logger.trace("Finish sending kill msgs");
+        logger.trace("Waiting trs...");
+        waitTransitions(trTids, logger, config);
+        logger.trace("All trs rolled back");
 
         logger.trace(successMsg(ret, config));
         return ret;
     }
 
-    bool waitTransitions(ref Tid[string] tids, in Config con)
+    bool waitTransitions(ref Tid[string] tids, Logger logger, in Config con)
     {
         bool success = true;
         while (!tids.empty)
@@ -205,22 +214,27 @@ struct Engine
             import std.concurrency : receive;
             receive(
                 (TransitionSucceeded ts) {
+                    logger.trace(ts, " received");
                     //logger.trace(recvMsg(ts, con));
                     store.put(ts.tokenElements);
                 },
                 (TransitionFailed tf) {
+                    logger.trace(tf, " received");
                     //logger.trace(recvMsg(tf, con));
                     store.put(tf.tokenElements);
                     success = false;
                 },
                 (in SignalSent sig) {
+                    logger.trace(sig, " received");
                     //logger.trace(recvMsg(sig, con)); // ignored
                 },
                 (in EngineWillStop ews) {
+                    logger.trace(ews, " received");
                     //logger.trace(recvMsg(ews, config));
                 },
                 (LinkTerminated lt) {
                     import std.conv : to;
+                    logger.trace(lt, " received");
                     //logger.trace(recvMsg(lt, con));
                     tids.remove(lt.tid.to!string);
                 },

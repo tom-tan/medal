@@ -37,10 +37,11 @@ immutable class ShellCommandTransition_: Transition
     protected override void fire(in BindingElement be, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
     {
         import medal.message : SignalSent, TransitionFailed, TransitionSucceeded;
+        import medal.utils.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
+
         import std.algorithm : canFind, either, filter;
         import std.concurrency : receive, send, spawn;
         import std.file : getcwd, remove;
-        import std.process : Pid, spawnProcess, tryWait, ProcessConfig = Config;
         import std.stdio : File, stdin;
         import std.variant : Variant;
 
@@ -104,7 +105,6 @@ immutable class ShellCommandTransition_: Transition
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
-            import std.process : wait;
             try 
             {
                 // Note: if interrupted, it returns negative number
@@ -155,19 +155,21 @@ immutable class ShellCommandTransition_: Transition
             (in SignalSent sig) {
                 import std.concurrency : receiveOnly;
                 import std.format : format;
-                import std.process : kill;
 
-                kill(pid);
-                receiveOnly!int;
                 auto msg = format!"interrupted (%s)"(sig.no);
                 logger.info(failureMsg(be, cmd, con, msg));
+
+                logger.tracef("kill %s", pid.processID);
+                kill(pid);
+                logger.tracef("killed %s", pid.processID);
+                auto ret = receiveOnly!int;
+                logger.tracef("receive return code %s for %s", ret, pid.processID);
                 send(networkTid,
                      TransitionFailed(be, msg));
             },
             (Variant v) {
                 import std.concurrency : receiveOnly;
                 import std.format : format;
-                import std.process : kill;
 
                 kill(pid);
                 receiveOnly!int;
