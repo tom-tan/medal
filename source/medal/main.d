@@ -186,15 +186,21 @@ EOS".outdent[0..$-1])(args[0].baseName);
         (SignalSent ss) {
             import std.concurrency : send;
 
-            sharedLog.info(failureMsg(format!"signal %s is sent"(ss.no)));
+            auto no = ss.no;
+            sharedLog.info(failureMsg(format!"signal %s is sent"(no)));
             send(mainTid, ss);
             receive(
                 (TransitionSucceeded ts) {
                     sharedLog.info(successMsg(ts));
                     success = true;
                 },
+                (TransitionFailed tf) {
+                    sharedLog.info(failureMsg(format!"transition failure due to signal interrupt (%s)"(no)));
+                    success = false;
+                },
                 (Variant v) {
-                    sharedLog.info(failureMsg(format!"transition returned with %s after the signal"(v)));
+                    auto msg = format!"Unintended object is received after signal interrupt (%s): %s"(no, v);
+                    sharedLog.critical(failureMsg(msg));
                     success = false;
                 },
             );
