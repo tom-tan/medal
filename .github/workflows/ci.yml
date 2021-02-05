@@ -106,5 +106,5 @@ jobs:
           alpineVersion: 3.13
       - uses: actions/upload-artifact@v2
         with:
-          name: latest-builds
+          name: medal-master
           path: ${{ github.workspace }}/bin/
