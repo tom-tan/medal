@@ -107,4 +107,4 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: latest-builds
-          path: ${{ github.workspace }}/medal-master.tar.gz
+          path: ${{ github.workspace }}/bin/
