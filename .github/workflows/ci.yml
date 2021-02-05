@@ -89,3 +89,22 @@ jobs:
           asset_path: ${{ github.workspace }}/net2dot.tar.gz
           asset_name: net2dot-linux-x86_64.tar.gz
           asset_content_type: application/tar+gzip
+
+  artifacts:
+    runs-on: ubuntu-latest
+    needs: [info, test]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: build a package
+        run: |
+          docker run --rm -i -v ${GITHUB_WORKSPACE}:/workdir -w /workdir alpine:${alpineVersion} sh alpine-build.sh
+          cd ${GITHUB_WORKSPACE}/bin
+          tar cf ${GITHUB_WORKSPACE}/medal-master.tar.gz medal net2dot
+        env:
+          alpineVersion: 3.12
+      - uses: actions/upload-artifact@v2
+        with:
+          name: latest-builds
+          path: ${{ github.workspace }}/medal-master.tar.gz
