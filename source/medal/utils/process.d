@@ -1545,6 +1545,7 @@ private void setCLOEXEC(int fd, bool on) nothrow @nogc
     assert(flags != -1 || .errno == EBADF);
 }
 
+/+
 @system unittest // Command line arguments in spawnProcess().
 {
     version (Windows) TestScript prog =
@@ -1560,12 +1561,12 @@ private void setCLOEXEC(int fd, bool on) nothrow @nogc
     assert(wait(spawnProcess([prog.path, "foo"])) == 2);
     assert(wait(spawnProcess([prog.path, "foo", "baz"])) == 2);
     assert(wait(spawnProcess([prog.path, "foo", "bar"])) == 0);
-}
+}+/
 
 // test that file descriptors are correctly closed / left open.
 // ideally this would be done by the child process making libc
 // calls, but we make do...
-version (Posix) @system unittest
+/+version (Posix) @system unittest
 {
     import core.sys.posix.fcntl : open, O_RDONLY;
     import core.sys.posix.unistd : close;
@@ -1749,7 +1750,7 @@ version (Posix) @system unittest
     testFiles(Config.none);
     testPipes(Config.detached);
     testFiles(Config.detached);
-}
+}+/
 
 @system unittest // Error handling in spawnProcess()
 {
@@ -1779,7 +1780,7 @@ version (Posix) @system unittest
         assertThrown!ProcessException(spawnProcess(deleteme, null, Config.detached));
     }
 }
-
+/+
 @system unittest // Specifying a working directory.
 {
     import std.path;
@@ -1833,7 +1834,7 @@ version (Posix) @system unittest
     string directory = "";
     assert(directory.ptr && !directory.length);
     spawnProcess([prog.path], null, Config.none, directory).wait();
-}
+}+/
 
 // Reopening the standard streams (https://issues.dlang.org/show_bug.cgi?id=13258)
 @system unittest
@@ -2315,7 +2316,7 @@ int wait(Pid pid) @safe
     return pid.performWait(true);
 }
 
-
+/+
 @system unittest // Pid and wait()
 {
     version (Windows)    TestScript prog = "exit %~1";
@@ -2331,7 +2332,7 @@ int wait(Pid pid) @safe
     assert(pid.processID < 0);
     version (Windows)    assert(pid.osHandle == INVALID_HANDLE_VALUE);
     else version (Posix) assert(pid.osHandle < 0);
-}
+}+/
 
 
 /**
@@ -2471,6 +2472,7 @@ void kill(Pid pid, int codeOrSignal)
     }
 }
 
+/+
 @system unittest // tryWait() and kill()
 {
     import core.thread;
@@ -2527,7 +2529,7 @@ void kill(Pid pid, int codeOrSignal)
     version (Windows) assert(pid.osHandle == INVALID_HANDLE_VALUE);
     assertThrown!ProcessException(wait(pid));
     assertThrown!ProcessException(kill(pid));
-}
+}+/
 
 
 /**
@@ -2899,6 +2901,7 @@ enum Redirect
     stdoutToStderr = 16,
 }
 
+/+
 @system unittest
 {
     import std.string;
@@ -2974,7 +2977,7 @@ enum Redirect
     assertThrown!Error(p.stdin);
     assertThrown!Error(p.stdout);
     wait(p.pid);
-}
+}+/
 
 /**
 Object which contains $(REF File, std,stdio) handles that allow communication
@@ -3181,6 +3184,7 @@ private auto executeImpl(alias pipeFunc, Cmd, ExtraPipeFuncArgs...)(
     return Tuple!(int, "status", string, "output")(wait(p.pid), a.data);
 }
 
+/+
 @system unittest
 {
     import std.string;
@@ -3204,7 +3208,7 @@ private auto executeImpl(alias pipeFunc, Cmd, ExtraPipeFuncArgs...)(
     auto s = execute([prog.path, "Hello", "World"]);
     assert(s.status == 123);
     assert(s.output.stripRight() == "HelloWorld");
-}
+}+/
 
 @safe unittest
 {
