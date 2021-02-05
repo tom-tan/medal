@@ -25,6 +25,7 @@ immutable class NetworkTransition_: Transition
 {
     ///
     this(in string name, in Guard g1, in Guard g2, in Transition[] trs,
+         in Transition[] exitTrs = [], in Transition[] successTrs = [], in Transition[] failureTrs = [],
          immutable Config con = Config.init) nothrow pure @safe
     in(!trs.empty)
     do 
@@ -37,6 +38,9 @@ immutable class NetworkTransition_: Transition
         auto aef = g2.byKey.map!(p => tuple(p, OutputPattern.init)).assocArray;
         super(name, g1, () @trusted { return aef.assumeUnique; }());
         transitions = trs;
+        exitTransitions = exitTrs;
+        successTransitions = successTrs;
+        failureTransitions = failureTrs;
         stopGuard = g2;
         config = con;
     }
@@ -58,7 +62,8 @@ protected:
         logger.info(startMsg(initBe, netConfig));
         scope(failure) logger.critical(failureMsg(initBe, netConfig, "Unknown error"));
 
-        auto engine = Engine(transitions, stopGuard);
+        auto engine = Engine(transitions, stopGuard,
+                             exitTransitions, successTransitions, failureTransitions);
         auto retBe = engine.run(initBe, netConfig, logger);
         if (retBe)
         {
@@ -121,6 +126,10 @@ private:
     }
 
     Transition[] transitions;
+    Transition[] exitTransitions;
+    Transition[] successTransitions;
+    Transition[] failureTransitions;
+
     Guard stopGuard;
     Config config;
 }

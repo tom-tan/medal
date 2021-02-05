@@ -91,7 +91,9 @@ struct Engine
     }
 
     ///
-    this(in Transition[] trs, in Guard stopGuard = Guard.init) nothrow pure @safe
+    this(in Transition[] trs, in Guard stopGuard = Guard.init,
+         in Transition[] exitTrs = [], in Transition[] successTrs = [],
+         in Transition[] failureTrs = []) nothrow pure @safe
     in(!trs.empty)
     do
     {
@@ -102,6 +104,10 @@ struct Engine
         }
         store = Store(transitions);
         rule = Rule(transitions);
+        exitRules = [
+            ExitMode.success: Rule(exitTrs~successTrs),
+            ExitMode.failure: Rule(exitTrs~failureTrs),
+        ];
     }
 
     ///
@@ -187,27 +193,91 @@ struct Engine
                 },
             );
         }
-        import core.stdc.signal : SIGINT;
-        import std.algorithm : each;
-        import std.array : array;
 
-        logger.trace("Start sending kill msgs to ", trTids.byValue.array);
-        foreach(t; trTids.byValue)
+        killTransitions(trTids, logger);
+        auto success = waitTransitions(trTids, logger, config);
+
+        Rule exitRule = exitRules[!ret.empty && success ?
+                                  ExitMode.success : ExitMode.failure];
+
+        send(thisTid, TransitionSucceeded(new BindingElement));
+        bool firstRun = true;
+        while (!trTids.empty || firstRun)
         {
-            logger.trace("Send kill to ", t);
-            send(t, SignalSent(SIGINT));
+            receive(
+                (TransitionSucceeded ts) {
+                    firstRun = false;
+                    logger.trace(recvMsg(ts, config));
+                    store.put(ts.tokenElements);
+                    auto candidates = exitRule.dispatch(ts.tokenElements);
+                    while (!candidates.empty)
+                    {
+                        import std.range : front, popFront;
+
+                        auto c = candidates.front;
+                        if (auto be = c.fireable(store))
+                        {
+                            store.remove(be);
+                            auto tid = spawnFire(c, be, thisTid, config, logger);
+                            //trTids.insert(tid);
+                            trTids[tid.to!string] = tid;
+                            logger.trace(fireMsg(c, be, tid, config));
+                            continue;
+                        }
+                        candidates.popFront;
+                    }
+                },
+                (TransitionFailed tf) {
+                    // it does not roll back to prevent eternal loops
+                    logger.trace(recvMsg(tf, config));
+                    // store.put(tf.tokenElements);
+                },
+                (in SignalSent sig) {
+                    // ignored
+                    logger.trace(recvMsg(sig, config));
+                },
+                (LinkTerminated lt) {
+                    logger.trace(recvMsg(lt, config));
+                    //trTids.removeKey(lt.tid);
+                    trTids.remove(lt.tid.to!string);
+                },
+                (Variant v) {
+                    import std.format : format;
+                    auto msg = format!"unknown message (%s)"(v);
+                    logger.critical(failureMsg(initBe, config, msg)); // TODO: fix
+                },
+            );
         }
-        logger.trace("Finish sending kill msgs");
-        logger.trace("Waiting trs...");
-        waitTransitions(trTids, logger, config);
-        logger.trace("All trs rolled back");
 
         logger.trace(successMsg(ret, config));
         return ret;
     }
 
-    bool waitTransitions(ref Tid[string] tids, Logger logger, in Config con)
+    void killTransitions(Tid[string] tids, Logger logger)
     {
+        import std.array : array;
+
+        logger.trace("Start sending kill msgs to ", tids.byValue.array);
+        scope(exit) logger.trace("Finish sending kill msgs");
+
+        foreach(t; tids.byValue)
+        {
+            import core.stdc.signal : SIGINT;
+            import std.concurrency : send;
+        
+            logger.trace("Send kill to ", t);
+            send(t, SignalSent(SIGINT));
+        }
+    }
+
+    bool waitTransitions(ref Tid[string] tids, Logger logger, in Config con)
+    out(_; tids.empty)
+    {
+        import std.array : array;
+
+        logger.trace("Waiting transitions: ", tids.byValue.array);
+        scope(exit) logger.trace("All transitions are rolled back");
+
         bool success = true;
         while (!tids.empty)
         {
@@ -229,6 +299,7 @@ struct Engine
                     //logger.trace(recvMsg(sig, con)); // ignored
                 },
                 (in EngineWillStop ews) {
+                    // TODO: how to deal with it?
                     logger.trace(ews, " received");
                     //logger.trace(recvMsg(ews, config));
                 },
@@ -372,6 +443,13 @@ struct Engine
     Transition[] transitions;
     Store store;
     Rule rule;
+    Rule[ExitMode] exitRules;
+
+    enum ExitMode
+    {
+        success,
+        failure,
+    }
 }
 
 ///

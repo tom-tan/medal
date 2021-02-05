@@ -167,7 +167,7 @@ do
     auto g1 = "in" in node ? loadGuard(node["in"], file) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"], file) : Guard.init;
-    return new NetworkTransition(name, g1, g2, trs, con);
+    return new NetworkTransition(name, g1, g2, trs, [], [], [], con);
 }
 
 ///
