@@ -264,7 +264,7 @@ struct Engine
         {
             import core.stdc.signal : SIGINT;
             import std.concurrency : send;
-        
+
             logger.trace("Send kill to ", t);
             send(t, SignalSent(SIGINT));
         }

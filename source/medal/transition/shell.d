@@ -105,7 +105,7 @@ immutable class ShellCommandTransition_: Transition
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
-            try 
+            try
             {
                 // Note: if interrupted, it returns negative number
     			auto code = wait(cast()pid);
@@ -333,7 +333,7 @@ private:
 
         enum escape = '~';
 
-        auto aa = chain(be.tokenElements.to!(string[string]).byPair, 
+        auto aa = chain(be.tokenElements.to!(string[string]).byPair,
                         outFiles.to!(string[string]).byPair).assocArray;
         string str = cmd;
         string resulted;

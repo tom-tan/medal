@@ -28,7 +28,7 @@ immutable class NetworkTransition_: Transition
          in Transition[] exitTrs = [], in Transition[] successTrs = [], in Transition[] failureTrs = [],
          immutable Config con = Config.init) nothrow pure @safe
     in(!trs.empty)
-    do 
+    do
     {
         import std.algorithm : map;
         import std.array : assocArray;
@@ -92,7 +92,7 @@ private:
         ret["out"] = stopGuard.to!(string[string]);
         return ret;
     }
-    
+
     JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in Config con) const pure @safe
     {
         import std.conv : to;
@@ -176,7 +176,7 @@ unittest
 immutable class InvocationTransition_: Transition
 {
     ///
-    this(in string name, in Guard g, 
+    this(in string name, in Guard g,
          immutable Place[Place] inPorts, immutable Place[Place] outPorts,
          Transition tr, immutable Config con = Config.init) nothrow pure @trusted
     {
@@ -265,7 +265,7 @@ private:
         ret["sub-transition"] = subTransition.name;
         return ret;
     }
-    
+
     JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in Config con) const pure @safe
     {
         import std.conv : to;

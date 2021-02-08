@@ -87,7 +87,7 @@ shared static this()
 {
     ///
     this() @nogc nothrow pure
-    { 
+    {
         tokenElements = (Token[Place]).init;
     }
 

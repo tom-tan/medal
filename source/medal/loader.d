@@ -82,7 +82,7 @@ do
 void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node, string file) @safe
 {
     import medal.exception : loadEnforce;
-    
+
     import std.algorithm : canFind;
     import std.array : array;
     import std.format : format;
@@ -368,8 +368,8 @@ BindingElement loadBindingElement(Node node, string file) @safe
                           .map!(p => tuple(loadPlace(p.key),
                                            new Token(p.value.get!string)))
                           .assocArray;
-    return new BindingElement(() @trusted { 
-        return tokenElems.assumeUnique; 
+    return new BindingElement(() @trusted {
+        return tokenElems.assumeUnique;
     }());
 }
 
@@ -423,8 +423,8 @@ in("configuration" in node)
         }).assocArray;
     }
 
-    typeof(return) ret = { 
-        tag: tag, 
+    typeof(return) ret = {
+        tag: tag,
         environment: () @trusted {
             import std.exception : assumeUnique;
             return environment.assumeUnique;
@@ -452,7 +452,7 @@ Place loadPlace(Node node) @safe
 
     loadEnforce(pl != "." && pl != ".." && pl != "~",
                 format!"Invalid place name `%s`: its name is not allowed in medal"(pl), node, "");
-    
+
     loadEnforce(!pl.startsWith("."), format!"Invalid place name `%s`: it should not start with `.`"(pl), node, "");
     loadEnforce(!pl.startsWith("-"), format!"Invalid place name `%s`: it should not start with `-`"(pl), node, "");
     loadEnforce(!pl.endsWith("&"), format!"Invalid place name `%s`: it should not end with `&`"(pl), node, "");

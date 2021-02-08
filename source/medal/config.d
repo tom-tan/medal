@@ -35,7 +35,7 @@ module medal.config;
         import std.array : replace;
         import std.functional : not;
         import std.range : empty;
-        
+
         string t;
         if (tag.canFind("~(tag)"))
         {
