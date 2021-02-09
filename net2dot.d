@@ -62,7 +62,7 @@ void transition2dot(Node node,
     }
 }
 
-void shell2dot(Node n, 
+void shell2dot(Node n,
                ref RedBlackTree!string trs,
                ref RedBlackTree!string places,
                ref Edge[] edges)
@@ -88,10 +88,9 @@ void shell2dot(Node n,
             edges ~= tuple(name, op, pat);
         });
     }
-    
 }
 
-void network2dot(Node n, 
+void network2dot(Node n,
                  ref RedBlackTree!string trs,
                  ref RedBlackTree!string places,
                  ref Edge[] edges)
@@ -111,7 +110,7 @@ void network2dot(Node n,
     }
 }
 
-void invocation2dot(Node n, 
+void invocation2dot(Node n,
                     ref RedBlackTree!string trs,
                     ref RedBlackTree!string places,
                     ref Edge[] edges)
@@ -137,7 +136,6 @@ void invocation2dot(Node n,
             edges ~= tuple(name, port, "net."~op);
         });
     }
-    
 }
 
 auto to_dot(RedBlackTree!string trs,
