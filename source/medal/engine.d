@@ -22,6 +22,13 @@ struct EngineWillStop
     BindingElement bindingElement;
 }
 
+enum EngineResult
+{
+    succeeded,
+    failed,
+    interrupted,
+}
+
 ///
 immutable class EngineStopTransition_: Transition
 {
@@ -111,7 +118,7 @@ struct Engine
     }
 
     ///
-    BindingElement run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
+    auto run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
     {
         import std.concurrency : receive, send, thisTid;
         import std.container.rbtree : RedBlackTree;
@@ -119,7 +126,10 @@ struct Engine
         import std.container.binaryheap : BinaryHeap;
         import std.container.util : make;
         import std.conv : to;
-        import std.typecons : Rebindable;
+        import std.typecons : Rebindable, Tuple;
+
+        alias ResultType = Tuple!(EngineResult, "status", BindingElement, "bindingElement");
+
 
         logger.trace(startMsg(initBe, config));
         scope(failure) logger.critical(failureMsg(initBe, config, "Unknown error"));
@@ -130,17 +140,18 @@ struct Engine
             if (config.tmpdir.exists)
             {
                 logger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
-                return typeof(return).init;
+                return ResultType(EngineResult.failed, BindingElement.init);
             }
             // it will be deleted by root (app.main)
             mkdirRecurse(config.tmpdir);
         }
 
         auto running = true;
+        auto interrupted = false;
         // https://issues.dlang.org/show_bug.cgi?id=21512
         //auto trTids = make!(RedBlackTree!(Tid, (in Tid a, in Tid b) => a.to!string < b.to!string));
         Tid[string] trTids;
-        Rebindable!(typeof(return)) ret;
+        Rebindable!(BindingElement) retBe;
         send(thisTid, TransitionSucceeded(initBe));
         while (running)
         {
@@ -174,10 +185,11 @@ struct Engine
                 (in SignalSent sig) {
                     logger.trace(recvMsg(sig, config));
                     running = false;
+                    interrupted = true;
                 },
                 (in EngineWillStop ews) {
                     logger.trace(recvMsg(ews, config));
-                    ret = ews.bindingElement;
+                    retBe = ews.bindingElement;
                     running = false;
                 },
                 (LinkTerminated lt) {
@@ -197,8 +209,14 @@ struct Engine
         killTransitions(trTids, logger);
         auto success = waitTransitions(trTids, logger, config);
 
-        Rule exitRule = exitRules[!ret.empty && success ?
-                                  ExitMode.success : ExitMode.failure];
+        auto status = interrupted ? EngineResult.interrupted :
+                      !retBe.empty && success ? EngineResult.succeeded :
+                                                EngineResult.failed;
+
+        auto mode = status == EngineResult.succeeded ? ExitMode.success :
+                                                       ExitMode.failure;
+        Rule exitRule = exitRules[mode];
+        logger.tracef("switch to %s", mode);
 
         send(thisTid, TransitionSucceeded(new BindingElement));
         bool firstRun = true;
@@ -249,8 +267,8 @@ struct Engine
             );
         }
 
-        logger.trace(successMsg(ret, config));
-        return ret;
+        logger.trace(successMsg(retBe, config));
+        return ResultType(status, retBe);
     }
 
     void killTransitions(Tid[string] tids, Logger logger)
@@ -293,6 +311,11 @@ struct Engine
                     //logger.trace(recvMsg(tf, con));
                     store.put(tf.tokenElements);
                     success = false;
+                },
+                (TransitionInterrupted ti) {
+                    logger.trace(ti, " received");
+                    //logger.trace(recvMsg(ti, con));
+                    store.put(ti.tokenElements);
                 },
                 (in SignalSent sig) {
                     logger.trace(sig, " received");

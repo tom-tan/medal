@@ -58,3 +58,16 @@ struct TransitionFailed
     Tid tid;
     string cause;
 }
+
+///
+struct TransitionInterrupted
+{
+    ///
+    this(in BindingElement tokenElems)
+    {
+        tokenElements = tokenElems;
+        tid = thisTid;
+    }
+    BindingElement tokenElements;
+    Tid tid;
+}

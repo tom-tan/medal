@@ -34,9 +34,10 @@ immutable class ShellCommandTransition_: Transition
     }
 
     ///
-    protected override void fire(in BindingElement be, Tid networkTid, Config con = Config.init, Logger logger = sharedLog)
+    protected override void fire(in BindingElement be, Tid networkTid,
+                                 Config con = Config.init, Logger logger = sharedLog)
     {
-        import medal.message : SignalSent, TransitionFailed, TransitionSucceeded;
+        import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import medal.utils.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
 
         import std.algorithm : canFind, either, filter;
@@ -164,8 +165,7 @@ immutable class ShellCommandTransition_: Transition
                 logger.tracef("killed %s", pid.processID);
                 auto ret = receiveOnly!int;
                 logger.tracef("receive return code %s for %s", ret, pid.processID);
-                send(networkTid,
-                     TransitionFailed(be, msg));
+                send(networkTid, TransitionInterrupted(be));
             },
             (Variant v) {
                 import std.concurrency : receiveOnly;
@@ -293,7 +293,7 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import core.sys.posix.signal: SIGINT;
-        import medal.message : SignalSent, TransitionFailed;
+        import medal.message : SignalSent, TransitionInterrupted;
         import std.concurrency : LinkTerminated, receiveOnly, receiveTimeout, send, thisTid;
         import std.conv : to;
         import std.datetime : seconds;
@@ -310,12 +310,8 @@ immutable class ShellCommandTransition_: Transition
         }
         send(tid, SignalSent(SIGINT));
         auto received = receiveTimeout(30.seconds,
-            (TransitionFailed tf) {
-                import std.format : format;
-                auto expected = format!"interrupted (%s)"(SIGINT);
-                assert(tf.cause == expected,
-                       format!"`%s` is expected but: `%s`"(expected, tf.cause));
-                assert(tf.tokenElements.empty);
+            (TransitionInterrupted ti) {
+                assert(ti.tokenElements.empty);
             },
             (Variant v) { assert(false); },
         );

@@ -47,10 +47,11 @@ immutable class NetworkTransition_: Transition
 
 protected:
     ///
-    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog) const
+    override void fire(in BindingElement initBe, Tid networkTid,
+                       Config con = Config.init, Logger logger = sharedLog) const
     {
-        import medal.engine : Engine;
-        import medal.message : TransitionFailed, TransitionSucceeded;
+        import medal.engine : Engine, EngineResult;
+        import medal.message : TransitionInterrupted, TransitionFailed, TransitionSucceeded;
 
         import std.algorithm : either;
         import std.concurrency : send;
@@ -64,16 +65,21 @@ protected:
 
         auto engine = Engine(transitions, stopGuard,
                              exitTransitions, successTransitions, failureTransitions);
-        auto retBe = engine.run(initBe, netConfig, logger);
-        if (retBe)
+        auto result = engine.run(initBe, netConfig, logger);
+        final switch (result.status) with (EngineResult)
         {
-            logger.info(successMsg(initBe, retBe, netConfig));
-            send(networkTid, TransitionSucceeded(retBe));
-        }
-        else
-        {
+        case succeeded:
+            logger.info(successMsg(initBe, result.bindingElement, netConfig));
+            send(networkTid, TransitionSucceeded(result.bindingElement));
+            break;
+        case failed:
             logger.info(failureMsg(initBe, netConfig, "internal transition failed"));
             send(networkTid, TransitionFailed(initBe));
+            break;
+        case interrupted:
+            logger.info(failureMsg(initBe, netConfig, "transition interrupted"));
+            send(networkTid, TransitionInterrupted(initBe));
+            break;
         }
     }
 
@@ -195,10 +201,11 @@ immutable class InvocationTransition_: Transition
 
 protected:
     ///
-    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init, Logger logger = sharedLog) const
+    override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init,
+                       Logger logger = sharedLog) const
     {
-        import medal.message;
-        import std.concurrency: receive, send, thisTid;
+        import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
+        import std.concurrency : receive, send, thisTid;
         import std.variant : Variant;
 
         logger.trace(startMsg(initBe, con));
@@ -221,6 +228,32 @@ protected:
                 auto msg = "internal transition failed";
                 logger.trace(failureMsg(initBe, con, msg));
                 send(networkTid, TransitionFailed(initBe, msg));
+            },
+            (SignalSent ss) {
+                send(tid, ss);
+                receive(
+                    (TransitionSucceeded ts) {
+                        auto resultedBe = port(ts.tokenElements, outputPorts);
+                        logger.info(outputPortMsg(resultedBe, ts.tokenElements, con, c));
+                        logger.trace(successMsg(initBe, resultedBe, con));
+                        send(networkTid, TransitionSucceeded(resultedBe));
+                    },
+                    (TransitionFailed tf) {
+                        auto msg = "internal transition failed";
+                        logger.trace(failureMsg(initBe, con, msg));
+                        send(networkTid, TransitionFailed(initBe, msg));
+                    },
+                    (TransitionInterrupted ti) {
+                        logger.trace(failureMsg(initBe, con, "transition interrupted"));
+                        send(networkTid, TransitionInterrupted(initBe));
+                    },
+                    (Variant v) {
+                        import std.format : format;
+                        auto msg = format!"unknown message (%s)"(v);
+                        logger.trace(failureMsg(initBe, con, msg));
+                        send(networkTid, TransitionFailed(initBe, msg));
+                    },
+                );
             },
             (Variant v) {
                 import std.format : format;
@@ -302,7 +335,8 @@ private:
         return ret;
     }
 
-    JSONValue inputPortMsg(in BindingElement parentBe, in BindingElement thisBe, in Config parentCon, in Config thisCon) const pure @safe
+    JSONValue inputPortMsg(in BindingElement parentBe, in BindingElement thisBe,
+                           in Config parentCon, in Config thisCon) const pure @safe
     {
         import std.conv : to;
 
@@ -322,7 +356,8 @@ private:
         return ret;
     }
 
-    JSONValue outputPortMsg(in BindingElement parentBe, in BindingElement thisBe, in Config parentCon, in Config thisCon) const pure @safe
+    JSONValue outputPortMsg(in BindingElement parentBe, in BindingElement thisBe,
+                            in Config parentCon, in Config thisCon) const pure @safe
     {
         import std.conv : to;
 

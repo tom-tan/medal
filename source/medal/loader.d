@@ -164,10 +164,31 @@ do
     loadEnforce(!trs.empty, "at least one transition is needed in `transitions` fields",
                 trsNode, file);
 
+    Transition[] exitTrs, successTrs, failureTrs;
+
+    // Note: "on" is imilicitly converted to true value :-(
+    if (auto on_ = true in node)
+    {
+        auto on = *on_;
+        exitTrs = "exit" in on ? on["exit"].sequence
+                                           .map!(n => loadTransition(n, file))
+                                           .array
+                               : [];
+        successTrs = "success" in on ? on["success"].sequence
+                                                    .map!(n => loadTransition(n, file))
+                                                    .array
+                                     : [];
+        failureTrs = "failure" in on ? on["failure"].sequence
+                                                    .map!(n => loadTransition(n, file))
+                                                    .array
+                                     : [];
+    }
+
     auto g1 = "in" in node ? loadGuard(node["in"], file) : Guard.init;
 
     auto g2 = "out" in node ? loadGuard(node["out"], file) : Guard.init;
-    return new NetworkTransition(name, g1, g2, trs, [], [], [], con);
+    return new NetworkTransition(name, g1, g2, trs,
+                                 exitTrs, successTrs, failureTrs, con);
 }
 
 ///

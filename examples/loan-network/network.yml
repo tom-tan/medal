@@ -1,0 +1,74 @@
+name: loan-pattern-example
+type: network
+in:
+  - place: foo
+    pattern: 0
+out:
+  - place: foo
+    pattern: exit
+on:
+  success: # executed when the main network is succeeded
+    - name: print-success-msg
+      type: shell
+      in:
+        - place: buzbuz
+          pattern: 3
+      command: echo "Succeeded."
+    - name: unexecuted
+      type: shell
+      in:
+        - place: foo
+          pattern: exit
+      command: echo "This is not executed."
+  failure: # executed when some transitions in the main network are failed
+    - name: print-failure-msg
+      type: shell
+      in:
+        - place: foo
+          pattern: exec
+      command: echo "failed. All the unfinished transitions were rolled-back."
+  exit: # merged with `success` or `failure` network
+    - name: print-exit-msg
+      type: shell
+      in:
+        - place: bar
+          pattern: 1
+      command: echo "wait-foever was terminated"
+transitions:
+  - name: split
+    type: shell
+    in:
+      - place: foo
+        pattern: 0
+    out:
+      - place: bar
+        pattern: 1
+      - place: buzz
+        pattern: 2
+      - place: buzbuz
+        pattern: 3
+    command: "true"
+  - name: wait-foever
+    type: shell
+    in:
+      - place: bar
+        pattern: 1
+    command: sleep infinity
+  - name: wait-a-little
+    type: shell
+    in:
+      - place: buzz
+        pattern: 2
+    out:
+      - place: foo
+        pattern: exec
+    command: sleep 1
+  - name: exec
+    type: shell
+    in:
+      - place: foo
+        pattern: exec
+    out:
+      - place: foo
+        pattern: exit
+    command: "true"

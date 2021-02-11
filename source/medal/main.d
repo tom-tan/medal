@@ -20,7 +20,7 @@ int medalMain(string[] args)
     import medal.config : Config;
     import medal.loader : loadBindingElement, loadTransition;
     import medal.logger : JSONLogger, LogLevel, sharedLog;
-    import medal.message : SignalSent, TransitionFailed;
+    import medal.message : SignalSent, TransitionInterrupted, TransitionFailed;
     import medal.transition.core : BindingElement, spawnFire, Transition;
     import std.concurrency : receive, thisTid;
     import std.file : exists, mkdirRecurse;
@@ -195,7 +195,11 @@ EOS".outdent[0..$-1])(args[0].baseName);
                     success = true;
                 },
                 (TransitionFailed tf) {
-                    sharedLog.info(failureMsg(format!"transition failure due to signal interrupt (%s)"(no)));
+                    sharedLog.info(failureMsg("transition failure"));
+                    success = false;
+                },
+                (TransitionInterrupted ti) {
+                    sharedLog.info(failureMsg(format!"transition is interrupted (%s)"(no)));
                     success = false;
                 },
                 (Variant v) {
