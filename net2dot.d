@@ -16,7 +16,24 @@
 import std;
 import dyaml;
 
-alias Edge = Tuple!(string, string, string);
+struct Edge
+{
+    this(string src, string dst, string[] attrs = [])
+    {
+        this.src = src;
+        this.dst = dst;
+        this.attrs = attrs;
+    }
+
+    auto toDot()
+    {
+        auto prop = attrs.empty ? "" : format!`[%-(%s,%)]`(attrs);
+        return  format!`"%s" -> "%s" %s;`(src, dst, prop);
+    }
+
+    string src, dst;
+    string[] attrs;
+}
 
 void main(string[] args)
 {
@@ -36,26 +53,26 @@ void main(string[] args)
     auto root = Loader.fromFile(inp).load;
     auto type = enforce("type" in root, "`type` field is needed").get!string;
 
-    transition2dot(root, trs, places, edges);
-    File(out_dot, "w").writeln(to_dot(trs, places, edges));
+    transition2dot(root, trs, places, edges, "");
+    File(out_dot, "w").writeln(toDot(trs, places, edges));
 }
 
 void transition2dot(Node node,
                     ref RedBlackTree!string trs,
                     ref RedBlackTree!string places,
-                    ref Edge[] edges)
+                    ref Edge[] edges, string extraProps)
 {
     auto type = enforce("type" in node, "`type` field is needed").get!string;
     switch(type)
     {
     case "shell":
-        shell2dot(node, trs, places, edges);
+        shell2dot(node, trs, places, edges, extraProps);
         break;
     case "network":
-        network2dot(node, trs, places, edges);
+        network2dot(node, trs, places, edges, extraProps);
         break;
     case "invocation":
-        invocation2dot(node, trs, places, edges);
+        invocation2dot(node, trs, places, edges, extraProps);
         break;
     default:
         enforce(false, "Unknown type: "~type);
@@ -65,7 +82,8 @@ void transition2dot(Node node,
 void shell2dot(Node n,
                ref RedBlackTree!string trs,
                ref RedBlackTree!string places,
-               ref Edge[] edges)
+               ref Edge[] edges,
+               string extraProps)
 {
     auto name = enforce("name" in n, "`name` field is needed").get!string;
     trs.insert(name);
@@ -76,7 +94,12 @@ void shell2dot(Node n,
             auto ip = enforce("place" in i, "`place` field is needed").get!string;
             places.insert(ip);
             auto pat = enforce("pattern" in i, "`pattern` field is needed").get!string;
-            edges ~= tuple(ip, name, "="~pat);
+            auto props = [format!`label="=%s"`(pat)];
+            if (!extraProps.empty)
+            {
+                props ~= extraProps;
+            }
+            edges ~= Edge(ip, name, props);
         });
     }
     if (auto outs = "out" in n)
@@ -85,7 +108,12 @@ void shell2dot(Node n,
             auto op = enforce("place" in o, "`place` field is needed").get!string;
             places.insert(op);
             auto pat = enforce("pattern" in o, "`pattern` field is needed in "~name).get!string;
-            edges ~= tuple(name, op, pat);
+            auto props = [format!`label="=%s"`(pat)];
+            if (!extraProps.empty)
+            {
+                props ~= extraProps;
+            }
+            edges ~= Edge(name, op, props);
         });
     }
 }
@@ -93,10 +121,11 @@ void shell2dot(Node n,
 void network2dot(Node n,
                  ref RedBlackTree!string trs,
                  ref RedBlackTree!string places,
-                 ref Edge[] edges)
+                 ref Edge[] edges,
+                 string extraProps)
 {
     auto ts = enforce("transitions" in n, "`transitions` field is needed").sequence;
-    ts.each!(t => transition2dot(t, trs, places, edges));
+    ts.each!(t => transition2dot(t, trs, places, edges, extraProps));
     if (auto outs = "out" in n)
     {
         auto end = "_end_";
@@ -105,15 +134,38 @@ void network2dot(Node n,
             auto op = enforce("place" in o, "`place` field is needed").get!string;
             places.insert(op);
             auto pat = enforce("pattern" in o, "`pattern` field is needed").get!string;
-            edges ~= tuple(op, end, pat);
+            auto props = [format!`label="%s"`(pat)];
+            if (!extraProps.empty)
+            {
+                props ~= extraProps;
+            }
+            edges ~= Edge(op, end, props);
         });
+    }
+
+    if (auto on = "on" in n)
+    {
+        if (auto success = "success" in *on)
+        {
+            success.sequence.each!(t => transition2dot(t, trs, places, edges, "style=dashed"));
+        }
+        if (auto failure = "failure" in *on)
+        {
+            failure.sequence.each!(t => transition2dot(t, trs, places, edges, "style=dotted"));
+        }
+        if (auto exit = "exit" in *on)
+        {
+            exit.sequence.each!(t => transition2dot(t, trs, places, edges, "style=dashed"));
+            exit.sequence.each!(t => transition2dot(t, trs, places, edges, "style=dotted"));
+        }
     }
 }
 
 void invocation2dot(Node n,
                     ref RedBlackTree!string trs,
                     ref RedBlackTree!string places,
-                    ref Edge[] edges)
+                    ref Edge[] edges,
+                    string extraProps)
 {
     auto name = enforce("name" in n, "`name` field is needed").get!string;
     trs.insert(name);
@@ -124,7 +176,12 @@ void invocation2dot(Node n,
             auto ip = enforce("place" in i, "`place` field is needed").get!string;
             places.insert(ip);
             auto pat = enforce("pattern" in i, "`pattern` field is needed").get!string;
-            edges ~= tuple(ip, name, "="~pat);
+            auto props = [format!`label="%s"`(pat)];
+            if (!extraProps.empty)
+            {
+                props ~= extraProps;
+            }
+            edges ~= Edge(ip, name, props);
         });
     }
     if (auto outs = "out" in n)
@@ -133,14 +190,19 @@ void invocation2dot(Node n,
             auto port = enforce("port-to" in o, "`port-to` field is needed in "~name).get!string;
             places.insert(port);
             auto op = enforce("place" in o, "`place` field is needed").get!string;
-            edges ~= tuple(name, port, "net."~op);
+            auto props = [format!`label="net.%s"`(op)];
+            if (!extraProps.empty)
+            {
+                props ~= extraProps;
+            }
+            edges ~= Edge(name, port, props);
         });
     }
 }
 
-auto to_dot(RedBlackTree!string trs,
-            RedBlackTree!string places,
-            Edge[] edges)
+auto toDot(RedBlackTree!string trs,
+           RedBlackTree!string places,
+           Edge[] edges)
 {
     return format!q"EOS
 digraph G {
@@ -148,5 +210,5 @@ digraph G {
 %s
 }
 EOS"(trs[].map!(t => format!`"%s" [shape = box];`(t)).joiner(" ").array,
-     edges.map!(e => format!`"%s" -> "%s" [label="%s"];`(e.expand)).joiner(" ").array);
+     edges.map!(e => e.toDot).joiner(" ").array);
 }
