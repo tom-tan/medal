@@ -143,7 +143,8 @@ void network2dot(Node n,
         });
     }
 
-    if (auto on = "on" in n)
+    // Note: "on" is imilicitly converted to true value :-(
+    if (auto on = true in n)
     {
         if (auto success = "success" in *on)
         {
