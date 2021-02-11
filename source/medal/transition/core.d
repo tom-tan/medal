@@ -293,7 +293,9 @@ enum PatternType
 
 
 ///
-alias ArcExpressionFunction = immutable OutputPattern[Place];
+alias ArcExpressionFunction_ = OutputPattern[Place];
+/// ditto
+alias ArcExpressionFunction = immutable ArcExpressionFunction_;
 
 ///
 BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) nothrow pure @trusted
@@ -322,56 +324,91 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 }
 
 ///
-@safe nothrow pure unittest
+@safe /*nothrow*/ pure unittest // due to to!AEF_
 {
+    import std.conv : to;
+    import std.exception : assertNotThrown;
+
     immutable aef = [
-        Place("foo"): OutputPattern("constant-value"),
-    ];
+        "foo": "constant-value",
+    ].to!ArcExpressionFunction_;
+
     auto be = aef.apply(BindingElement.init, CommandResult.init);
-    assert(be == [Place("foo"): new Token("constant-value")]);
-}
 
-///
-@safe nothrow pure unittest
-{
-    immutable aef = [
-        Place("foo"): OutputPattern(SpecialPattern.Stdout),
-    ];
-    CommandResult result = { stdout: "stdout.txt" };
-    auto be = aef.apply(BindingElement.init, result);
-    assert(be == [Place("foo"): new Token("stdout.txt")]);
-}
-
-///
-@safe nothrow pure unittest
-{
-    immutable aef = [
-        Place("foo"): OutputPattern(SpecialPattern.Return),
-        Place("bar"): OutputPattern("other-constant-value"),
-    ];
-    CommandResult result = { stdout: "stdout.txt", code: 0 };
-    auto be = aef.apply(BindingElement.init, result);
     assert(be == [
-        Place("foo"): new Token("0"),
-        Place("bar"): new Token("other-constant-value"),
-    ]);
+        "foo": "constant-value"
+    ].to!(Token[Place])
+     .assertNotThrown);
 }
 
 ///
-@safe nothrow pure unittest
+@safe /*nothrow*/ pure unittest
 {
+    import std.conv : to;
+    import std.exception : assertNotThrown;
+
     immutable aef = [
-        Place("buzz"): OutputPattern("~(foo)"),
-    ];
-    auto be = new BindingElement([Place("foo"): new Token("3")]);
-    auto ret = aef.apply(be, CommandResult.init);
-    assert(ret == [
-        Place("buzz"): new Token("3"),
-    ]);
+        "foo": SpecialPattern.Stdout,
+    ].to!ArcExpressionFunction_;
+
+    CommandResult result = { stdout: "stdout.txt" };
+
+    auto be = aef.apply(BindingElement.init, result);
+
+    assert(be == [
+        "foo": "stdout.txt"
+    ].to!(Token[Place])
+     .assertNotThrown);
 }
 
 ///
-alias Guard = immutable InputPattern[Place];
+@safe /*nothrow*/ pure unittest
+{
+    import std.conv : to;
+    import std.exception : assertNotThrown;
+
+    immutable aef = [
+        "foo": SpecialPattern.Return,
+        "bar": "other-constant-value",
+    ].to!ArcExpressionFunction_;
+
+    CommandResult result = { stdout: "stdout.txt", code: 0 };
+
+    auto be = aef.apply(BindingElement.init, result);
+
+    assert(be == [
+        "foo": "0",
+        "bar": "other-constant-value",
+    ].to!(Token[Place])
+     .assertNotThrown);
+}
+
+///
+@safe /*nothrow*/ pure unittest
+{
+    import std.conv : to;
+    import std.exception : assertNotThrown;
+
+    immutable aef = [
+        "buzz": "~(foo)",
+    ].to!ArcExpressionFunction_;
+
+    immutable be_ = [
+        "foo": "3"
+    ].to!(Token[Place]);
+
+    auto ret = aef.apply(new BindingElement(be_), CommandResult.init);
+
+    assert(ret == [
+        "buzz": "3",
+    ].to!(Token[Place])
+     .assertNotThrown);
+}
+
+///
+alias Guard_ = InputPattern[Place];
+/// ditto
+alias Guard = immutable Guard_;
 
 ///
 immutable abstract class Transition_

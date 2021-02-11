@@ -238,8 +238,8 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         immutable aef = [
-            Place("foo"): OutputPattern(SpecialPattern.Return),
-        ];
+            "foo": SpecialPattern.Return,
+        ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "true", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
@@ -248,7 +248,9 @@ immutable class ShellCommandTransition_: Transition
         }
         receive(
             (TransitionSucceeded ts) {
-                assert(ts.tokenElements == [Place("foo"): new Token("0")]);
+                assert(ts.tokenElements == [
+                    "foo": "0"
+                ].to!(Token[Place]));
             },
             (Variant v) { assert(false, "Caught: "~v.to!string); },
         );
@@ -262,8 +264,8 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         immutable aef = [
-            Place("foo"): OutputPattern(SpecialPattern.Stdout),
-        ];
+            "foo": SpecialPattern.Stdout,
+        ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "echo bar", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
@@ -300,8 +302,8 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         immutable aef = [
-            Place("foo"): OutputPattern(SpecialPattern.Return),
-        ];
+            "foo": SpecialPattern.Return,
+        ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid);
         scope(exit)
@@ -385,28 +387,32 @@ private:
 
     @safe pure unittest
     {
-        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        import std.conv : to;
+        auto be = new BindingElement(["foo": "3"].to!(Token[Place]));
         auto cmd = commandWith("echo ~(foo)", be, (string[Place]).init);
         assert(cmd == "echo 3", cmd);
     }
 
     @safe pure unittest
     {
-        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        import std.conv : to;
+        auto be = new BindingElement(["foo": "3"].to!(Token[Place]));
         auto cmd = commandWith("echo ~~(foo)", be, (string[Place]).init);
         assert(cmd == "echo ~(foo)", cmd);
     }
 
     @safe pure unittest
     {
-        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        import std.conv : to;
+        auto be = new BindingElement(["foo": "3"].to!(Token[Place]));
         auto cmd = commandWith("echo ~~~(foo)", be, (string[Place]).init);
         assert(cmd == "echo ~3", cmd);
     }
 
     @safe pure unittest
     {
-        auto be = new BindingElement([Place("foo"): new Token("3")]);
+        import std.conv : to;
+        auto be = new BindingElement(["foo": "3"].to!(Token[Place]));
         auto outFiles = [
             Place("bar"): "output.txt"
         ];
