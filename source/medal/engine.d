@@ -302,39 +302,39 @@ struct Engine
             import std.concurrency : receive;
             receive(
                 (TransitionSucceeded ts) {
-                    logger.trace(ts, " received");
+                    logger.trace(ts, " received (in waitTransitions)");
                     //logger.trace(recvMsg(ts, con));
                     store.put(ts.tokenElements);
                 },
                 (TransitionFailed tf) {
-                    logger.trace(tf, " received");
+                    logger.trace(tf, " received (in waitTransitions)");
                     //logger.trace(recvMsg(tf, con));
                     store.put(tf.tokenElements);
                     success = false;
                 },
                 (TransitionInterrupted ti) {
-                    logger.trace(ti, " received");
+                    logger.trace(ti, " received (in waitTransitions)");
                     //logger.trace(recvMsg(ti, con));
                     store.put(ti.tokenElements);
                 },
                 (in SignalSent sig) {
-                    logger.trace(sig, " received");
+                    logger.trace(sig, " received (in waitTransitions)");
                     //logger.trace(recvMsg(sig, con)); // ignored
                 },
                 (in EngineWillStop ews) {
                     // TODO: how to deal with it?
-                    logger.trace(ews, " received");
+                    logger.trace(ews, " received (in waitTransitions)");
                     //logger.trace(recvMsg(ews, config));
                 },
                 (LinkTerminated lt) {
                     import std.conv : to;
-                    logger.trace(lt, " received");
+                    logger.trace(lt, " received (in waitTransitions)");
                     //logger.trace(recvMsg(lt, con));
                     tids.remove(lt.tid.to!string);
                 },
                 (Variant v) {
                     import std.format : format;
-                    auto msg = format!"unknown message (%s)"(v);
+                    auto msg = format!"unknown message (%s: in waitTransitions)"(v);
                     //logger.critical(failureMsg(initBe, con, msg)); // TODO: fix
                     success = false;
                 },
