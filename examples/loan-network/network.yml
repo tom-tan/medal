@@ -33,7 +33,7 @@ on:
       in:
         - place: bar
           pattern: 1
-      command: echo "wait-foever was terminated"
+      command: echo "wait-forever was terminated"
 transitions:
   - name: split
     type: shell
@@ -48,12 +48,13 @@ transitions:
       - place: buzbuz
         pattern: 3
     command: "true"
-  - name: wait-foever
+  - name: wait-forever
     type: shell
     in:
       - place: bar
         pattern: 1
-    command: sleep infinity
+    # Note: `sleep infinity` doesn't work in macOS Big Sur
+    command: sleep 999999
   - name: wait-a-little
     type: shell
     in:
