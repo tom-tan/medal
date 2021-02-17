@@ -29,10 +29,11 @@ module medal.config;
     bool reuseParentTmpdir;
 
     ///
-    Config inherits(Config parent, bool inheritReuse = false) inout pure
+    Config inherits(Config parent, bool inheritReuse = false) inout pure @trusted
     {
-        import std.algorithm : canFind, either;
-        import std.array : replace;
+        import std.algorithm : canFind, either, merge, sort;
+        import std.array : array, assocArray, byPair, replace;
+        import std.exception : assumeUnique;
         import std.functional : not;
         import std.range : empty;
 
@@ -50,11 +51,17 @@ module medal.config;
         auto tdir = either!(not!empty)(tmpdir.replace("~(tmpdir)", parent.tmpdir)
                                              .replace("~(workdir)", parent.workdir),
                                        parent.tmpdir);
+        // TODO: overriding is not reasonable for PATH
+        enum sortFun = "a.key < b.key";
+        auto ppair = parent.environment.byPair.array.sort!sortFun;
+        auto cpair = environment.byPair.array.sort!sortFun;
+        auto env = ppair.merge!sortFun(cpair).assocArray;
         auto leaveDir = parent.leaveTmpdir;
         auto reuse = inheritReuse ? parent.reuseParentTmpdir
                                   : tdir == parent.tmpdir;
         Config c = {
             tag: t, workdir: wdir, tmpdir: tdir,
+            environment: env.assumeUnique,
             leaveTmpdir: leaveDir, reuseParentTmpdir: reuse,
         };
         return c;
@@ -86,6 +93,20 @@ module medal.config;
         Config p = { tag: "parent" };
         Config c = { tag: "child" };
         assert(c.inherits(p).tag == "parent");
+    }
+
+    @system unittest // due to std.conv.to
+    {
+        import std.conv : to;
+
+        // Specified env vars cannot be overriden by parents
+        // TODO: more appropriate behavior
+        Config p = { environment: [ "PATH": "/usr/local/bin:/usr/bin", "VAR": "other variable" ] };
+        Config c = { environment: [ "PATH": "/custom/path/bin" ] };
+        assert(c.inherits(p).environment == [
+            "PATH": "/custom/path/bin",
+            "VAR": "other variable"
+        ].to!(immutable(string[string])));
     }
 }
 

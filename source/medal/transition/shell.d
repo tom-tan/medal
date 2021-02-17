@@ -42,12 +42,13 @@ immutable class ShellCommandTransition_: Transition
 
         import std.algorithm : canFind, either, filter;
         import std.concurrency : receive, send, spawn;
+        import std.conv : to;
         import std.file : getcwd, remove;
         import std.stdio : File, stdin;
         import std.variant : Variant;
 
         logger.info(startMsg(be, con));
-        scope(failure) logger.critical(failureMsg(be, command, con, "Unknown error"));
+        scope(failure) logger.critical(failureMsg(be, command, string[string].init, con, "Unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
         auto stdoutPlaces = arcExpFun.byKey.filter!(p => arcExpFun[p].type == PatternType.Stdout);
@@ -100,9 +101,21 @@ immutable class ShellCommandTransition_: Transition
         auto needReturn = arcExpFun.byValue.canFind!(p => p.type == PatternType.Return);
 
         auto cmd = commandWith(command, be, files);
-        logger.trace(constructMsg(be, cmd, con));
-        auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr, ["MEDAL_TMPDIR": con.tmpdir],
-                                ProcessConfig.none, con.workdir);
+        auto newEnv = con.environment.to!(string[string]);
+        newEnv["MEDAL_TMPDIR"] = con.tmpdir;
+        if ("PATH" !in newEnv)
+        {
+            import std.process : environment;
+            newEnv["PATH"] = environment["PATH"];
+        }
+        if ("HOME" !in newEnv)
+        {
+            import std.process : environment;
+            newEnv["HOME"] = environment["HOME"];
+        }
+        logger.trace(constructMsg(be, cmd, newEnv, con));
+        auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr,
+                                newEnv, ProcessConfig.newEnv, con.workdir);
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;
@@ -139,7 +152,7 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = result2BE(code);
                 if (needReturn || code == 0)
                 {
-                    logger.info(successMsg(be, ret, cmd, con));
+                    logger.info(successMsg(be, ret, cmd, newEnv, con));
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
@@ -148,7 +161,7 @@ immutable class ShellCommandTransition_: Transition
                     import std.format : format;
 
                     auto msg = format!"command returned with non-zero (%s)"(code);
-                    logger.info(failureMsg(be, cmd, con, msg));
+                    logger.info(failureMsg(be, cmd, newEnv, con, msg));
                     send(networkTid,
                          TransitionFailed(be, msg));
                 }
@@ -158,7 +171,7 @@ immutable class ShellCommandTransition_: Transition
                 import std.format : format;
 
                 auto msg = format!"interrupted (%s)"(sig.no);
-                logger.info(failureMsg(be, cmd, con, msg));
+                logger.info(failureMsg(be, cmd, newEnv, con, msg));
 
                 logger.tracef("kill %s", pid.processID);
                 kill(pid);
@@ -175,7 +188,7 @@ immutable class ShellCommandTransition_: Transition
                 receiveOnly!int;
 
                 auto msg = format!"unknown message (%s)"(v);
-                logger.critical(failureMsg(be, cmd, con, msg));
+                logger.critical(failureMsg(be, cmd, newEnv, con, msg));
                 send(networkTid, TransitionFailed(be, msg));
             }
         );
@@ -438,7 +451,7 @@ private:
         return ret;
     }
 
-    JSONValue constructMsg(in BindingElement be, in string cmd, in Config con) const pure @safe
+    JSONValue constructMsg(in BindingElement be, in string cmd, in string[string] env, in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -454,10 +467,12 @@ private:
         ret["constructed-command"] = cmd;
         ret["workdir"] = con.workdir;
         ret["tmpdir"] = con.tmpdir;
+        ret["env"] = env;
         return ret;
     }
 
-    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in string cmd, in Config con) const pure @safe
+    JSONValue successMsg(in BindingElement ibe, in BindingElement obe, in string cmd, in string[string] env,
+                         in Config con) const pure @safe
     {
         import std.conv : to;
 
@@ -473,10 +488,12 @@ private:
         ret["success"] = true;
         ret["workdir"] = con.workdir;
         ret["tmpdir"] = con.tmpdir;
+        ret["env"] = env;
         return ret;
     }
 
-    JSONValue failureMsg(in BindingElement be, in string cmd, in Config con, in string cause) const pure @safe
+    JSONValue failureMsg(in BindingElement be, in string cmd, in string[string] env,
+                         in Config con, in string cause) const pure @safe
     {
         import std.conv : to;
 
@@ -493,6 +510,7 @@ private:
         ret["cause"] = cause;
         ret["workdir"] = con.workdir;
         ret["tmpdir"] = con.tmpdir;
+        ret["env"] = env;
         return ret;
     }
 

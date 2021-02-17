@@ -1,0 +1,26 @@
+configuration:
+  env:
+    - name: MESSAGE
+      value: Hello
+    - name: PATH
+      value: /custom/path/bin:$PATH
+name: env-network
+type: network
+in:
+  - place: foo
+    pattern: 0
+out:
+  - place: foo
+    pattern: exit
+transitions:
+  - name: show-env
+    type: shell
+    in:
+      - place: foo
+        pattern: 0
+    out:
+      - place: foo
+        pattern: exit
+    command: |
+      echo "$MESSAGE, world!"
+      echo "PATH: $PATH"

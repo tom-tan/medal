@@ -429,18 +429,25 @@ in("configuration" in node)
                     *tdir, file);
     }
 
-    string[string] environment;
-    loadEnforce("environment" !in n, "Invalid field `environment`; did you mean `environments`?",
-                n, file);
-    if (auto env = "environments" in n)
+    string[string] env;
+    if (auto e = "env" in n)
     {
         import std.algorithm : map;
         import std.array : assocArray;
         import std.typecons : tuple;
 
-        environment = env.sequence.map!((Node nn) {
-            return tuple((*loadEnforce("name" in nn, "`name` field is needed", nn, file)).get!string,
-                         (*loadEnforce("value" in nn, "`value` field is needed", nn, file)).get!string);
+        env = e.sequence.map!((Node nn) @trusted {
+            import std.process : executeShell;
+            import std.string : chomp;
+
+            auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn, file)).get!string;
+            auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn, file)).get!string;
+            auto ret = executeShell("echo "~value); // TODO: Not to use external program
+            if (ret.status == 0)
+            {
+                value = ret.output.chomp;
+            }
+            return tuple(name, value);
         }).assocArray;
     }
 
@@ -448,7 +455,7 @@ in("configuration" in node)
         tag: tag,
         environment: () @trusted {
             import std.exception : assumeUnique;
-            return environment.assumeUnique;
+            return env.assumeUnique;
         }(),
         workdir: workdir,
         tmpdir: tmpdir,
