@@ -436,7 +436,7 @@ in("configuration" in node)
         import std.array : assocArray;
         import std.typecons : tuple;
 
-        env = e.sequence.map!((Node nn) @trusted {
+        env = e.sequence.map!((Node nn) {
             auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn, file)).get!string;
             auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn, file)).get!string;
             return tuple(name, value);
