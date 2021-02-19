@@ -101,7 +101,23 @@ immutable class ShellCommandTransition_: Transition
         auto needReturn = arcExpFun.byValue.canFind!(p => p.type == PatternType.Return);
 
         auto cmd = commandWith(command, be, files);
-        auto newEnv = con.environment.to!(string[string]);
+        string[string] newEnv;
+        foreach(name, value; con.environment)
+        {
+            import std.process : executeShell;
+            import std.string : chomp;
+
+            auto ret = executeShell("echo "~value); // TODO: Not to use external program
+            if (ret.status == 0)
+            {
+                newEnv[name] = ret.output.chomp;
+            }
+            else
+            {
+                newEnv[name] = value;
+            }
+        }
+
         newEnv["MEDAL_TMPDIR"] = con.tmpdir;
         if ("PATH" !in newEnv)
         {

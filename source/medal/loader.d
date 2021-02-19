@@ -437,16 +437,8 @@ in("configuration" in node)
         import std.typecons : tuple;
 
         env = e.sequence.map!((Node nn) @trusted {
-            import std.process : executeShell;
-            import std.string : chomp;
-
             auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn, file)).get!string;
             auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn, file)).get!string;
-            auto ret = executeShell("echo "~value); // TODO: Not to use external program
-            if (ret.status == 0)
-            {
-                value = ret.output.chomp;
-            }
             return tuple(name, value);
         }).assocArray;
     }
