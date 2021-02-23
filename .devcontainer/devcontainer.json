@@ -1,5 +1,5 @@
 {
-  "image": "dlang2/ldc-ubuntu:1.24.0",
+  "image": "dlang2/ldc-ubuntu:1.25.0",
   "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
   "postCreateCommand": "apt-get update && apt-get install -y --no-install-recommends gdb git jq",
   "extensions": ["webfreak.code-d", "webfreak.debug", "joaompinto.vscode-graphviz", "shardulm94.trailing-spaces"],
