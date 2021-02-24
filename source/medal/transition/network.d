@@ -6,19 +6,12 @@
 module medal.transition.network;
 
 import medal.config : Config;
-import medal.logger : Logger, sharedLog;
+import medal.logger : Logger, NullLogger;
 import medal.transition.core;
 
 import std.concurrency : Tid;
 import std.json : JSONValue;
 import std.range : empty;
-
-version(unittest)
-shared static this()
-{
-    import medal.logger : LogLevel;
-    sharedLog.logLevel = LogLevel.off;
-}
 
 ///
 immutable class NetworkTransition_: Transition
@@ -48,7 +41,7 @@ immutable class NetworkTransition_: Transition
 protected:
     ///
     override void fire(in BindingElement initBe, Tid networkTid,
-                       Config con = Config.init, Logger logger = sharedLog) const
+                       Config con = Config.init, Logger logger = new NullLogger) const
     {
         import medal.engine : Engine, EngineResult;
         import medal.message : TransitionInterrupted, TransitionFailed, TransitionSucceeded;
@@ -210,7 +203,7 @@ immutable class InvocationTransition_: Transition
 protected:
     ///
     override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init,
-                       Logger logger = sharedLog) const
+                       Logger logger = new NullLogger) const
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import std.concurrency : receive, send, thisTid;

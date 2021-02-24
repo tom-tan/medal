@@ -6,18 +6,10 @@
 module medal.transition.core;
 
 import medal.config : Config;
-import medal.logger : Logger, sharedLog;
+import medal.logger : Logger, NullLogger;
 
 import std.concurrency : Tid;
 import std.json : JSONValue;
-
-version(unittest)
-shared static this()
-{
-    import medal.logger : LogLevel;
-    sharedLog.logLevel = LogLevel.off;
-}
-
 
 ///
 @safe struct Place
@@ -485,7 +477,7 @@ immutable abstract class Transition_
 alias Transition = immutable Transition_;
 
 ///
-Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Config.init, Logger logger = sharedLog)
+Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Config.init, Logger logger = new NullLogger)
 {
     import core.exception : AssertError;
     import std.concurrency : send, spawnLinked;

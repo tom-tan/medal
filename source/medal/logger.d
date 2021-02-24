@@ -8,7 +8,7 @@ module medal.logger;
 import std.datetime.timezone : TimeZone;
 import std.stdio : File;
 
-public import std.experimental.logger : LogLevel, Logger, sharedLog;
+public import std.experimental.logger : LogLevel, Logger, NullLogger, sharedLog;
 
 ///
 @safe class JSONLogger: Logger

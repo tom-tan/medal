@@ -6,7 +6,7 @@
 module medal.engine;
 
 import medal.config : Config;
-import medal.logger;
+import medal.logger: Logger, NullLogger;
 import medal.message;
 import medal.transition.core;
 
@@ -39,7 +39,7 @@ immutable class EngineStopTransition_: Transition
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = null) const
+    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = new NullLogger) const
     {
         import std.concurrency : send;
 
@@ -118,7 +118,7 @@ struct Engine
     }
 
     ///
-    auto run(in BindingElement initBe, Config config = Config.init, Logger logger = sharedLog)
+    auto run(in BindingElement initBe, Config config = Config.init, Logger logger = new NullLogger)
     {
         import std.concurrency : receive, send, thisTid;
         import std.container.rbtree : RedBlackTree;

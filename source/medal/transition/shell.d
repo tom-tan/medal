@@ -6,20 +6,13 @@
 module medal.transition.shell;
 
 import medal.config : Config;
-import medal.logger : Logger, sharedLog;
+import medal.logger : Logger, NullLogger;
 import medal.transition.core;
 
 import std.algorithm : all;
 import std.concurrency : Tid;
 import std.json : JSONValue;
 import std.range : empty;
-
-version(unittest)
-shared static this()
-{
-    import medal.logger : LogLevel;
-    sharedLog.logLevel = LogLevel.off;
-}
 
 ///
 immutable class ShellCommandTransition_: Transition
@@ -35,7 +28,7 @@ immutable class ShellCommandTransition_: Transition
 
     ///
     protected override void fire(in BindingElement be, Tid networkTid,
-                                 Config con = Config.init, Logger logger = sharedLog)
+                                 Config con = Config.init, Logger logger = new NullLogger)
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import medal.utils.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
