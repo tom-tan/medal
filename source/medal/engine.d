@@ -109,7 +109,7 @@ struct Engine
         {
             transitions ~= new EngineStopTransition(stopGuard);
         }
-        store = Store(transitions);
+        store = Store(transitions~exitTrs~successTrs~failureTrs);
         rule = Rule(transitions);
         exitRules = [
             ExitMode.success: Rule(exitTrs~successTrs),
