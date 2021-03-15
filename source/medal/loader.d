@@ -13,24 +13,24 @@ import medal.transition.core;
 import std.typecons : Tuple;
 
 ///
-Transition loadTransition(Node node, string file) @safe
+Transition loadTransition(Node node) @safe
 {
     import medal.exception : loadEnforce, LoadError;
 
     auto type = (*loadEnforce("type" in node,
                               "`type` field is needed for transitions",
-                              node, file)).get!string;
+                              node)).get!string;
     switch(type)
     {
     case "shell":
-        return loadShellCommandTransition(node, file);
+        return loadShellCommandTransition(node);
     case "network":
-        return loadNetworkTransition(node, file);
+        return loadNetworkTransition(node);
     case "invocation":
-        return loadInvocationTransition(node, file);
+        return loadInvocationTransition(node);
     default:
         import std.format : format;
-        throw new LoadError(format!"Unknown type: `%s`"(type), node, file);
+        throw new LoadError(format!"Unknown type: `%s`"(type), node);
     }
 }
 
@@ -49,12 +49,12 @@ unittest
     command: true
 EOS";
     auto trRoot = Loader.fromString(inpStr).load;
-    auto tr = loadTransition(trRoot, "");
+    auto tr = loadTransition(trRoot);
     assert(cast(ShellCommandTransition)tr);
 }
 
 ///
-Transition loadShellCommandTransition(Node node, string file) @safe
+Transition loadShellCommandTransition(Node node) @safe
 in("type" in node)
 in(node["type"].get!string == "shell")
 do
@@ -65,23 +65,23 @@ do
 
     auto name = "name" in node ? node["name"].get!string : "";
 
-    auto g = "in" in node ? loadGuard(node["in"], file) : Guard.init;
+    auto g = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
-    auto aef = "out" in node ? loadArcExpressionFunction(node["out"], file)
+    auto aef = "out" in node ? loadArcExpressionFunction(node["out"])
                              : ArcExpressionFunction.init;
     enforceValidAEF("out" in node ? node["out"] : Node((Node[]).init),
-                    "in" in node ? node["in"] : Node((Node[]).init), file);
+                    "in" in node ? node["in"] : Node((Node[]).init));
 
     auto cmdNode = *loadEnforce("command" in node,
                                 "`command` field is necessary for shell transitions",
-                                node, file);
+                                node);
     auto command = cmdNode.get!string;
-    enforceValidCommand(command, g, aef, cmdNode, file);
+    enforceValidCommand(command, g, aef, cmdNode);
 
     return new ShellCommandTransition(name, command, g, aef);
 }
 
-void enforceValidAEF(Node aef, Node inp, string file) @safe
+void enforceValidAEF(Node aef, Node inp) @safe
 {
     import std.algorithm : any, map;
     import std.array : array;
@@ -97,12 +97,12 @@ void enforceValidAEF(Node aef, Node inp, string file) @safe
             import std.format : format;
             loadEnforce(inpNames.any!(n => n == c[1]),
                         format!"Invalid reference to `%s`: no such input place"(c[1]),
-                        n["pattern"], file);
+                        n["pattern"]);
         }
     }
 }
 
-void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node, string file) @safe
+void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node) @safe
 {
     import medal.exception : loadEnforce;
 
@@ -115,8 +115,7 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
     auto gPlaces = g.byKey.array;
     auto aefPlaces = aef.byKey.array;
 
-    loadEnforce(!cmd.empty, "`command` field should not be an empty string",
-                node, file);
+    loadEnforce(!cmd.empty, "`command` field should not be an empty string", node);
 
     foreach(m; cmd.matchAll(ctRegex!(r"~(~~)*\(([^)]+)\)", "m")))
     {
@@ -129,29 +128,34 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
         {
             loadEnforce(aef[pl].type == PatternType.File,
                         format!"Refering the output place `%s` that is not `FILE`"(pl),
-                        node, file);
+                        node);
         }
         else
         {
             import medal.exception : LoadError;
-            throw new LoadError(format!"Invalid place `%s`"(pl), node, file);
+            throw new LoadError(format!"Invalid place `%s`"(pl), node);
         }
     }
     if (cmd.matchFirst(ctRegex!(r"\$\(.+\)", "m")) ||
         cmd.matchFirst(ctRegex!(r"`.+`", "m")))
     {
+        import dyaml : Mark;
         import medal.logger : sharedLog;
         import std.json : JSONValue;
+
+        Mark mark = node.startMark;
         JSONValue msg;
         msg["sender"] = "medal.loader";
         msg["message"] = "Command substitutions may hide unintended execution failures";
-        msg["file"] = file;
+        msg["file"] = mark.name;
+        msg["line"] = mark.line+1;
+        msg["column"] = mark.column+1;
         sharedLog.warning(msg);
     }
 }
 
 ///
-Transition loadNetworkTransition(Node node, string file) @safe
+Transition loadNetworkTransition(Node node) @safe
 in("type" in node)
 in(node["type"].get!string == "network")
 do
@@ -165,27 +169,27 @@ do
 
     loadEnforce("configurations" !in node,
                 "Invalid field `configurations`; did you mean `configuration`?",
-                node, file);
-    auto con = "configuration" in node ? loadConfig(node, file) : Config.init;
+                node);
+    auto con = "configuration" in node ? loadConfig(node) : Config.init;
 
     loadEnforce(con.tmpdir.empty, "`tmpdir` field is not valid in network transitions",
-                node["configuration"]["tmpdir"], file);
+                node["configuration"]["tmpdir"]);
     loadEnforce(con.workdir.empty, "`workdir` field is not valid in network transitions",
-                node["configuration"]["workdir"], file);
+                node["configuration"]["workdir"]);
 
     auto name = "name" in node ? node["name"].get!string : "";
 
     loadEnforce("transition" !in node,
                 "Invalid field `transition`; did you mean `transitions`?",
-                node, file);
+                node);
     auto trsNode = *loadEnforce("transitions" in node,
                                 "`transitions` field is needed in network transitions",
-                                node, file);
+                                node);
     auto trs = trsNode.sequence
-                      .map!(n => loadTransition(n, file))
+                      .map!(n => loadTransition(n))
                       .array;
     loadEnforce(!trs.empty, "at least one transition is needed in `transitions` fields",
-                trsNode, file);
+                trsNode);
 
     Transition[] exitTrs, successTrs, failureTrs;
 
@@ -194,28 +198,28 @@ do
     {
         auto on = *on_;
         exitTrs = "exit" in on ? on["exit"].sequence
-                                           .map!(n => loadTransition(n, file))
+                                           .map!(n => loadTransition(n))
                                            .array
                                : [];
         successTrs = "success" in on ? on["success"].sequence
-                                                    .map!(n => loadTransition(n, file))
+                                                    .map!(n => loadTransition(n))
                                                     .array
                                      : [];
         failureTrs = "failure" in on ? on["failure"].sequence
-                                                    .map!(n => loadTransition(n, file))
+                                                    .map!(n => loadTransition(n))
                                                     .array
                                      : [];
     }
 
-    auto g1 = "in" in node ? loadGuard(node["in"], file) : Guard.init;
+    auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
 
-    auto g2 = "out" in node ? loadGuard(node["out"], file) : Guard.init;
+    auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
     return new NetworkTransition(name, g1, g2, trs,
                                  exitTrs, successTrs, failureTrs, con);
 }
 
 ///
-Transition loadInvocationTransition(Node node, string file) @safe
+Transition loadInvocationTransition(Node node) @safe
 in("type" in node)
 in(node["type"].get!string == "invocation")
 do
@@ -231,34 +235,32 @@ do
 
     loadEnforce("configurations" !in node,
                 "Invalid field `configurations`; did you mean `configuration`?",
-                node, file);
-    auto con = "configuration" in node ? loadConfig(node, file) : Config.init;
+                node);
+    auto con = "configuration" in node ? loadConfig(node) : Config.init;
 
     auto name = "name" in node ? node["name"].get!string : "";
 
     auto subFileNode = *loadEnforce("use" in node,
                                     "`use` field is needed in invocation transitions",
-                                    node, file);
-    auto subFile = buildPath(file.dirName, subFileNode.get!string);
+                                    node);
+    auto subFile = buildPath(node.startMark.name.dirName, subFileNode.get!string);
     loadEnforce(subFile.exists, format!"Subnetwork file not found: `%s`"(subFile),
-                subFileNode, file);
+                subFileNode);
     auto subNode = Loader.fromFile(subFile).load;
-    auto tr = loadTransition(subNode, subFile);
+    auto tr = loadTransition(subNode);
 
-    auto inode = loadEnforce("in" in node, "`in` field is needed in invocation transitions",
-                             node, file);
-    auto itpl = loadPortGuard(*inode, file);
-    enforceInPortIsValid(itpl[1], tr.guard, *inode, file);
+    auto inode = loadEnforce("in" in node, "`in` field is needed in invocation transitions", node);
+    auto itpl = loadPortGuard(*inode);
+    enforceInPortIsValid(itpl[1], tr.guard, *inode);
 
-    auto onode = loadEnforce("out" in node, "`out` field is needed in invocation transitions",
-                             node, file);
-    auto oPort = loadOutputPort(*onode, file);
-    enforceOutPortIsValid(oPort, tr.arcExpFun, *onode, file);
+    auto onode = loadEnforce("out" in node, "`out` field is needed in invocation transitions", node);
+    auto oPort = loadOutputPort(*onode);
+    enforceOutPortIsValid(oPort, tr.arcExpFun, *onode);
 
     return new InvocationTransition(name, itpl[0], itpl[1], oPort, tr, con);
 }
 
-void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node, string file) @safe
+void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node) @safe
 {
     import medal.exception : loadEnforce;
 
@@ -277,13 +279,13 @@ void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node, stri
                             .sort()
                             .array;
     auto pg = setDifference(portPlaces, guardPlaces);
-    loadEnforce(pg.empty, format!"Ports to non-existent places: %-(%s, %)"(pg), node, file);
+    loadEnforce(pg.empty, format!"Ports to non-existent places: %-(%s, %)"(pg), node);
 
     auto gp = setDifference(guardPlaces, portPlaces);
-    loadEnforce(gp.empty, format!"Missing ports to: %-(%s, %)"(gp), node, file);
+    loadEnforce(gp.empty, format!"Missing ports to: %-(%s, %)"(gp), node);
 }
 
-void enforceOutPortIsValid(in Place[Place] ports, ArcExpressionFunction aef, Node node, string file) @safe
+void enforceOutPortIsValid(in Place[Place] ports, ArcExpressionFunction aef, Node node) @safe
 {
     import medal.exception : loadEnforce;
 
@@ -302,11 +304,11 @@ void enforceOutPortIsValid(in Place[Place] ports, ArcExpressionFunction aef, Nod
                         .sort()
                         .array;
     auto pa = setDifference(portPlaces, aefPlaces);
-    loadEnforce(pa.empty, format!"Ports from non-existent places: %-(%s, %)"(pa), node, file);
+    loadEnforce(pa.empty, format!"Ports from non-existent places: %-(%s, %)"(pa), node);
 }
 
 ///
-Guard loadGuard(Node node, string file) @safe
+Guard loadGuard(Node node) @safe
 {
     import medal.exception : loadEnforce;
 
@@ -317,17 +319,15 @@ Guard loadGuard(Node node, string file) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed",
-                                                         n, file));
-                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed",
-                                                 n, file)).get!string;
+                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
+                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string;
                         return tuple(pl, InputPattern(pat));
                     })
                     .assocArray;
     return () @trusted { return pats.assumeUnique; }();
 }
 
-Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node, string file) @trusted
+Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node) @trusted
 {
     import medal.exception : loadEnforce;
 
@@ -338,16 +338,16 @@ Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node, string file) @tru
     Place[Place] mapping;
     foreach(Node n; node)
     {
-        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
-        auto pat = InputPattern((*loadEnforce("pattern" in n, "`pattern` field is needed", n, file)).get!string);
-        auto p = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n, file));
+        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
+        auto pat = InputPattern((*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string);
+        auto p = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n));
         guard[pl] = pat;
         mapping[pl] = p;
     }
     return tuple(guard.assumeUnique, mapping.assumeUnique);
 }
 
-immutable(Place[Place]) loadOutputPort(Node node, string file) @trusted
+immutable(Place[Place]) loadOutputPort(Node node) @trusted
 {
     import medal.exception : loadEnforce;
 
@@ -358,8 +358,8 @@ immutable(Place[Place]) loadOutputPort(Node node, string file) @trusted
 
     auto port = node.sequence
                     .map!((n) {
-                        auto from = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
-                        auto to = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n, file));
+                        auto from = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
+                        auto to = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n));
                         return tuple(from, to);
                     })
                     .assocArray;
@@ -376,12 +376,12 @@ unittest
       pattern: constant-value
 EOS";
     auto root = Loader.fromString(inpStr).load;
-    auto g = loadGuard(root, "dummy.yml");
+    auto g = loadGuard(root);
     assert(g == cast(immutable)[Place("pl"): InputPattern("constant-value")]);
 }
 
 ///
-ArcExpressionFunction loadArcExpressionFunction(Node node, string file) @safe
+ArcExpressionFunction loadArcExpressionFunction(Node node) @safe
 {
     import medal.exception : loadEnforce;
 
@@ -392,8 +392,8 @@ ArcExpressionFunction loadArcExpressionFunction(Node node, string file) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n, file));
-                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n, file)).get!string;
+                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
+                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string;
                         return tuple(pl, OutputPattern(pat));
                     })
                     .assocArray;
@@ -401,7 +401,7 @@ ArcExpressionFunction loadArcExpressionFunction(Node node, string file) @safe
 }
 
 ///
-BindingElement loadBindingElement(Node node, string file) @safe
+BindingElement loadBindingElement(Node node) @safe
 {
     import std.algorithm : map;
     import std.array : assocArray;
@@ -418,7 +418,7 @@ BindingElement loadBindingElement(Node node, string file) @safe
 }
 
 ///
-Config loadConfig(Node node, string file) @safe
+Config loadConfig(Node node) @safe
 in("configuration" in node)
 {
     import medal.exception : loadEnforce;
@@ -436,8 +436,7 @@ in("configuration" in node)
     if (auto wdir = "workdir" in n)
     {
         workdir = wdir.get!string;
-        loadEnforce(!workdir.canFind(".."), "`..` is not allowed in `workdir`",
-                    *wdir, file);
+        loadEnforce(!workdir.canFind(".."), "`..` is not allowed in `workdir`", *wdir);
     }
 
     string tmpdir;
@@ -446,10 +445,8 @@ in("configuration" in node)
         import std.algorithm : startsWith;
 
         tmpdir = tdir.get!string;
-        loadEnforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`",
-                    *tdir, file);
-        loadEnforce(tmpdir.startsWith("~(tmpdir)"), "`tmpdir` should be in the parent `tmpdir`",
-                    *tdir, file);
+        loadEnforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`", *tdir);
+        loadEnforce(tmpdir.startsWith("~(tmpdir)"), "`tmpdir` should be in the parent `tmpdir`", *tdir);
     }
 
     string[string] env;
@@ -460,8 +457,8 @@ in("configuration" in node)
         import std.typecons : tuple;
 
         env = e.sequence.map!((Node nn) {
-            auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn, file)).get!string;
-            auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn, file)).get!string;
+            auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn)).get!string;
+            auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn)).get!string;
             return tuple(name, value);
         }).assocArray;
     }
@@ -491,14 +488,14 @@ Place loadPlace(Node node) @safe
     auto pl = node.get!string;
 
     auto idx = pl.indexOfAny(prohibited);
-    loadEnforce(idx == -1, format!"Invalid charactter `%s` was found in the place name `%s`"(pl[idx], pl), node, "");
+    loadEnforce(idx == -1, format!"Invalid charactter `%s` was found in the place name `%s`"(pl[idx], pl), node);
 
     loadEnforce(pl != "." && pl != ".." && pl != "~",
-                format!"Invalid place name `%s`: its name is not allowed in medal"(pl), node, "");
+                format!"Invalid place name `%s`: its name is not allowed in medal"(pl), node);
 
-    loadEnforce(!pl.startsWith("."), format!"Invalid place name `%s`: it should not start with `.`"(pl), node, "");
-    loadEnforce(!pl.startsWith("-"), format!"Invalid place name `%s`: it should not start with `-`"(pl), node, "");
-    loadEnforce(!pl.endsWith("&"), format!"Invalid place name `%s`: it should not end with `&`"(pl), node, "");
+    loadEnforce(!pl.startsWith("."), format!"Invalid place name `%s`: it should not start with `.`"(pl), node);
+    loadEnforce(!pl.startsWith("-"), format!"Invalid place name `%s`: it should not start with `-`"(pl), node);
+    loadEnforce(!pl.endsWith("&"), format!"Invalid place name `%s`: it should not end with `&`"(pl), node);
 
     return Place(pl);
 }

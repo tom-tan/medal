@@ -9,7 +9,10 @@
 	"targetType": "executable",
 	"targetPath": "bin",
 	"dependencies": {
-		"dyaml": "~>0.8.3"
+		"dyaml": {
+			"repository": "git+https://github.com/dlang-community/D-YAML.git",
+			"version": "ecbd63edaf25aa01951e360ec851a7f800f80777"
+		}
 	},
 	"buildTypes": {
 		"release-static": {

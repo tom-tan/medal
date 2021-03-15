@@ -5,25 +5,29 @@
  */
 module medal.exception;
 
-import dyaml : Node;
+import dyaml : Mark, Node;
 
 @safe:
 
 ///
-T loadEnforce(T)(T value, lazy string msg, lazy Node node, string file) pure
+T loadEnforce(T)(T value, lazy string msg, lazy Node node) pure
 {
     import std.exception : enforce;
-    return enforce(value, new LoadError(msg, node, file));
+    return enforce(value, new LoadError(msg, node));
 }
 
 ///
 class LoadError : Exception
 {
     ///
-    this(string msg, Node node, string file) @nogc nothrow pure
+    this(string msg, Node node) nothrow pure
     {
-        super(msg, file);
+        auto mark = node.startMark;
+        super(msg, mark.name, mark.line+1);
+        this.column = mark.column+1;
     }
+
+    ulong column;
 }
 
 ///

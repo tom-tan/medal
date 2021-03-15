@@ -128,7 +128,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
     try
     {
         netRoot = Loader.fromFile(netFile).load;
-        tr = loadTransition(netRoot, netFile);
+        tr = loadTransition(netRoot);
     }
     catch(LoadError e)
     {
@@ -145,7 +145,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
     if (initFile.exists)
     {
         Node initRoot = Loader.fromFile(initFile).load;
-        initBe = loadBindingElement(initRoot, initFile);
+        initBe = loadBindingElement(initRoot);
     }
     else if (initFile.empty)
     {
@@ -254,6 +254,8 @@ JSONValue failureMsg(in LoadError e)
     ret["success"] = false;
     ret["cause"] = e.msg;
     ret["file"] = e.file;
+    ret["line"] = e.line;
+    ret["column"] = e.column;
     return ret;
 }
 

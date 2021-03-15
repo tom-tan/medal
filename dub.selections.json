@@ -1,9 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"dyaml": "0.8.3",
-		"silly": "1.0.2",
-		"sumtype": "0.9.6",
+		"dyaml": {"version":"ecbd63edaf25aa01951e360ec851a7f800f80777","repository":"git+https://github.com/dlang-community/D-YAML.git"},
 		"tinyendian": "0.2.0"
 	}
 }
