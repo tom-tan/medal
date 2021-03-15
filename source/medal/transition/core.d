@@ -41,7 +41,7 @@ import std.json : JSONValue;
 }
 
 ///
-@safe class Token
+@safe struct Token
 {
     ///
     this(string val) @nogc nothrow pure
@@ -49,22 +49,15 @@ import std.json : JSONValue;
         value = val;
     }
 
-    override bool opEquals(in Object other) const @nogc nothrow pure
-    {
-        if (auto t = cast(const Token)other)
-        {
-            return value == t.value;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
     ///
-    override string toString() const @nogc nothrow pure
+    string toString() const @nogc nothrow pure
     {
         return value;
+    }
+
+    bool opCast(T: bool)() const @nogc nothrow pure
+    {
+        return value.length > 0;
     }
 
     // Type type
@@ -169,14 +162,14 @@ enum PatternType
     }
 
     ///
-    const(Token) match(in Token token) const @nogc nothrow pure
+    Token match(in Token token) const @nogc nothrow pure
     {
         final switch(type) with(PatternType)
         {
         case Any:
             return token;
         case Constant:
-            return pattern == token.value ? token : null;
+            return pattern == token.value ? token : Token.init;
         case Place, Stdout, Stderr, File, Return:
             assert(false);
         }
@@ -239,7 +232,7 @@ enum PatternType
     }
 
     ///
-    const(Token) match(in Place place, in BindingElement be, in CommandResult result) const nothrow pure
+    Token match(in Place place, in BindingElement be, in CommandResult result) const nothrow pure
     {
         import std.algorithm : find;
         import std.array : byPair;
@@ -251,18 +244,18 @@ enum PatternType
         case Place:
             return be.tokenElements.byPair.find!(pt => pt[0].name == pattern).front.value;
         case Stdout:
-            return new Token(result.stdout);
+            return Token(result.stdout);
         case Stderr:
-            return new Token(result.stderr);
+            return Token(result.stderr);
         case File:
             auto file = place in result.files;
             assert(file);
             assert(!file.empty);
-            return new Token(*file);
+            return Token(*file);
         case Return:
-            return new Token(result.code.to!string);
+            return Token(result.code.to!string);
         case Constant:
-            return new Token(pattern);
+            return Token(pattern);
         case Any:
             assert(false);
         }
@@ -290,19 +283,18 @@ alias ArcExpressionFunction_ = OutputPattern[Place];
 alias ArcExpressionFunction = immutable ArcExpressionFunction_;
 
 ///
-BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) nothrow pure @trusted
+BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) nothrow pure @safe
 {
     import std.algorithm : map;
     import std.array : assocArray, byPair;
-    import std.exception : assumeUnique;
     import std.typecons : tuple;
 
-    auto tokenElems = aef.byPair.map!((kv) {
+    immutable tokenElems = aef.byPair.map!((kv) {
         auto place = kv.key;
         auto pat = kv.value;
-        return tuple(place, cast()pat.match(place, be, result));
-    }).assocArray; // unsafe: assocArray
-    return new BindingElement(tokenElems.assumeUnique); // unsafe: assumeUnique
+        return tuple(place, pat.match(place, be, result));
+    }).assocArray;
+    return new BindingElement(tokenElems);
 }
 
 ///
@@ -316,7 +308,7 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 }
 
 ///
-@safe /*nothrow*/ pure unittest // due to to!AEF_
+@safe /*nothrow*/ pure unittest
 {
     import std.conv : to;
     import std.exception : assertNotThrown;
@@ -409,7 +401,7 @@ immutable abstract class Transition_
     protected abstract void fire(in BindingElement be, Tid networkTid, Config con, Logger logger);
 
     ///
-    BindingElement fireable(Store)(in Store s) nothrow pure
+    BindingElement fireable(Store)(in Store s) nothrow pure @trusted
     {
         import std.algorithm : find;
         import std.array : byPair;
@@ -424,7 +416,7 @@ immutable abstract class Transition_
                 auto rng = (*tokens)[].find!(t => ipattern.match(t));
                 if (!rng.empty)
                 {
-                    tokenElems[place] = cast()rng.front; // unsafe
+                    tokenElems[place] = rng.front;
                 }
                 else
                 {
@@ -447,7 +439,7 @@ immutable abstract class Transition_
         {
             if (auto token = place in be.tokenElements)
             {
-                if (ipat.match(*token) is null)
+                if (!ipat.match(*token))
                 {
                     return null;
                 }

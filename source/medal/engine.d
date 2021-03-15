@@ -83,18 +83,17 @@ alias EngineStopTransition = immutable EngineStopTransition_;
 struct Engine
 {
     ///
-    this(in Transition tr) nothrow pure @trusted
+    this(in Transition tr) nothrow pure @safe
     {
         import std.algorithm : map;
         import std.array : assocArray;
-        import std.exception : assumeUnique;
         import std.typecons : tuple;
 
-        auto g = tr.arcExpFun
-                   .byKey
-                   .map!(p => tuple(p, InputPattern(SpecialPattern.Any)))
-                   .assocArray;
-        this([tr], g.assumeUnique);
+        immutable g = tr.arcExpFun
+                        .byKey
+                        .map!(p => tuple(p, InputPattern(SpecialPattern.Any)))
+                        .assocArray;
+        this([tr], g);
     }
 
     ///

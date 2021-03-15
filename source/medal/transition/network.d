@@ -266,21 +266,20 @@ protected:
     }
 
 private:
-    static BindingElement port(in BindingElement be, immutable Place[Place] mapping) nothrow pure @trusted
+    static BindingElement port(in BindingElement be, immutable Place[Place] mapping) nothrow pure @safe
     {
         import std.algorithm : map;
         import std.array : assocArray, byPair;
-        import std.exception : assumeUnique;
         import std.typecons : tuple;
 
-        auto ported = be.tokenElements
-                        .byPair
-                        .map!((p) {
-                            auto mapped = mapping[p.key];
-                            return tuple(cast()mapped, cast()p.value);
-                        })
-                        .assocArray;
-        return new BindingElement(ported.assumeUnique);
+        immutable ported = be.tokenElements
+                             .byPair
+                             .map!((p) @trusted {
+                                 auto mapped = mapping[p.key];
+                                 return tuple(cast()mapped, cast()p.value);
+                             })
+                             .assocArray;
+        return new BindingElement(ported);
     }
 
     JSONValue startMsg(in BindingElement be, in Config con) const pure @safe

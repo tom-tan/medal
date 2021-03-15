@@ -410,7 +410,7 @@ BindingElement loadBindingElement(Node node) @safe
 
     auto tokenElems = node.mapping
                           .map!(p => tuple(loadPlace(p.key),
-                                           new Token(p.value.get!string)))
+                                           Token(p.value.get!string)))
                           .assocArray;
     return new BindingElement(() @trusted {
         return tokenElems.assumeUnique;
