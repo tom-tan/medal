@@ -231,7 +231,7 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionFailed;
-        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.concurrency : LinkTerminated, receiveOnly, thisTid;
         import std.conv : to;
         import std.variant : Variant;
 
@@ -242,12 +242,8 @@ immutable class ShellCommandTransition_: Transition
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
-        receive(
-            (TransitionFailed tf) {
-                assert(tf.tokenElements.empty);
-            },
-            (Variant v) { assert(false); },
-        );
+        auto tf = receiveOnly!TransitionFailed;
+        assert(tf.tokenElements.empty);
     }
 
     ///
@@ -255,7 +251,7 @@ immutable class ShellCommandTransition_: Transition
     unittest
     {
         import medal.message : TransitionSucceeded;
-        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.concurrency : LinkTerminated, receiveOnly, thisTid;
         import std.conv : to;
         import std.variant : Variant;
 
@@ -268,21 +264,18 @@ immutable class ShellCommandTransition_: Transition
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
-        receive(
-            (TransitionSucceeded ts) {
-                assert(ts.tokenElements == [
-                    "foo": "0"
-                ].to!(Token[Place]));
-            },
-            (Variant v) { assert(false, "Caught: "~v.to!string); },
-        );
+        auto ts = receiveOnly!TransitionSucceeded;
+        assert(ts.tokenElements == [
+            "foo": "0"
+        ].to!(Token[Place]));
     }
 
     unittest
     {
         import medal.message : TransitionSucceeded;
-        import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
+        import std.concurrency : LinkTerminated, receiveOnly, thisTid;
         import std.conv : to;
+        import std.file : exists, readText, remove;
         import std.variant : Variant;
 
         immutable aef = [
@@ -294,23 +287,15 @@ immutable class ShellCommandTransition_: Transition
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
         }
-        receive(
-            (TransitionSucceeded ts) {
-                if (auto token = Place("foo") in ts.tokenElements.tokenElements)
-                {
-                    auto name = token.value;
-                    import std.file : exists, readText, remove;
-                    assert(name.exists);
-                    scope(exit) name.remove;
-                    assert(name.readText == "bar\n");
-                }
-                else
-                {
-                    assert(false);
-                }
-            },
-            (Variant v) { assert(false); },
-        );
+        auto ts = receiveOnly!TransitionSucceeded;
+
+        auto token = Place("foo") in ts.tokenElements.tokenElements;
+        assert(token);
+
+        auto name = token.value;
+        scope(exit) name.remove;
+        assert(name.exists);
+        assert(name.readText == "bar\n");
     }
 
     version(Posix)
