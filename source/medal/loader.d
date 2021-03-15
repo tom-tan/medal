@@ -69,6 +69,8 @@ do
 
     auto aef = "out" in node ? loadArcExpressionFunction(node["out"], file)
                              : ArcExpressionFunction.init;
+    enforceValidAEF("out" in node ? node["out"] : Node((Node[]).init),
+                    "in" in node ? node["in"] : Node((Node[]).init), file);
 
     auto cmdNode = *loadEnforce("command" in node,
                                 "`command` field is necessary for shell transitions",
@@ -77,6 +79,27 @@ do
     enforceValidCommand(command, g, aef, cmdNode, file);
 
     return new ShellCommandTransition(name, command, g, aef);
+}
+
+void enforceValidAEF(Node aef, Node inp, string file) @safe
+{
+    import std.algorithm : any, map;
+    import std.array : array;
+
+    auto inpNames = inp.sequence.map!`a["place"].get!string`.array;
+    foreach(Node n; aef)
+    {
+        import std.regex : ctRegex, matchFirst;
+
+        if (auto c = n["pattern"].get!string.matchFirst(ctRegex!`^~\((.+)\)$`))
+        {
+            import medal.exception : loadEnforce;
+            import std.format : format;
+            loadEnforce(inpNames.any!(n => n == c[1]),
+                        format!"Invalid reference to `%s`: no such input place"(c[1]),
+                        n["pattern"], file);
+        }
+    }
 }
 
 void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node, string file) @safe
