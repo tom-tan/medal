@@ -94,10 +94,23 @@ void enforceValidAEF(Node aef, Node inp) @safe
         if (auto c = n["pattern"].get!string.matchFirst(ctRegex!`^~\((.+)\)$`))
         {
             import medal.exception : loadEnforce;
+            import std.array : join, split;
             import std.format : format;
-            loadEnforce(inpNames.any!(n => n == c[1]),
-                        format!"Invalid reference to `%s`: no such input place"(c[1]),
-                        n["pattern"]);
+            auto r = c[1];
+            auto pats = r.split(".");
+            switch(pats[1])
+            {
+            case "in":
+                auto place = pats[2..$].join(".");
+                loadEnforce(inpNames.any!(n => n == place),
+                            format!"Invalid reference to `%s`: no such input place"(c[1]),
+                            n["pattern"]);
+                break;
+            case SpecialPattern.File:
+                break;
+            default:
+                break;
+            }
         }
     }
 }
@@ -112,7 +125,7 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
     import std.range : empty;
     import std.regex : ctRegex, matchAll, matchFirst;
 
-    auto gPlaces = g.byKey.map!(k => format!"in.%s"(k.name)).array;
+    auto gPlaces = g.byKey.map!(k => format!".in.%s"(k.name)).array;
     auto aefPlaces = aef.byKey.array;
 
     loadEnforce(!cmd.empty, "`command` field should not be an empty string", node);
@@ -124,10 +137,11 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
         {
             continue;
         }
-        else if (aefPlaces.map!(p => format!"out.%s"(p.name)).canFind(pl))
+        else if (aefPlaces.map!(p => format!".out.%s"(p.name)).canFind(pl))
         {
-            loadEnforce(aef[Place(pl)] == SpecialPattern.File,
-                        format!"Refering the output place `%s` that is not `%s`"(pl, SpecialPattern.File),
+            auto placeName = pl[".out.".length..$];
+            loadEnforce(aef[Place(placeName)] == SpecialPattern.File,
+                        format!"Refering the output place `%s` that is not `%s`"(placeName, SpecialPattern.File),
                         node);
         }
         else

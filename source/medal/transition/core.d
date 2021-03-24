@@ -199,7 +199,7 @@ auto apply(ArcExpressionFunction aef, JSONValue be) @safe
         import std.typecons : tuple;
 
         auto place = kv.key;
-        auto pat = kv.value.replace(SpecialPattern.File.asOriginalType, format!"~(out.%s)"(place));
+        auto pat = kv.value.replace(SpecialPattern.File.asOriginalType, format!"~(.out.%s)"(place));
         return tuple(place, Token(pat.substitute(be)));
     }).assocArray;
     return new BindingElement(() @trusted { return tokenElems.assumeUnique; }() );
