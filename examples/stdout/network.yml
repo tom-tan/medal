@@ -14,8 +14,8 @@ transitions:
         pattern: _
     out:
       - place: out
-        pattern: STDOUT
-    command: echo ~(msg)
+        pattern: ~(.tr.stdout)
+    command: echo ~(.in.msg)
   - name: cat
     type: shell
     in:
@@ -23,5 +23,5 @@ transitions:
         pattern: _
     out:
       - place: end
-        pattern: RETURN
-    command: cat ~(out)
+        pattern: ~(.tr.return)
+    command: cat ~(.in.out)

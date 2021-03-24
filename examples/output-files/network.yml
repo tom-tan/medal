@@ -5,15 +5,15 @@ in:
     pattern: _
 out:
   - place: foo
-    pattern: FILE
+    pattern: ~(.newfile)
   - place: bar
-    pattern: FILE
+    pattern: ~(.newfile)
   - place: buzz
-    pattern: FILE
+    pattern: ~(.newfile)
   - place: others
-    pattern: STDOUT
+    pattern: ~(.tr.stdout)
 command: |
-  cat ~(inp) | awk '{ print $1 }' > ~(foo)
-  cat ~(inp) | awk '{ print $2 }' > ~(bar)
-  cat ~(inp) | awk '{ print $3 }' > ~(buzz)
+  cat ~(.in.inp) | awk '{ print $1 }' > ~(.out.foo)
+  cat ~(.in.inp) | awk '{ print $2 }' > ~(.out.bar)
+  cat ~(.in.inp) | awk '{ print $3 }' > ~(.out.buzz)
   echo this is other output

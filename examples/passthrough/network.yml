@@ -33,8 +33,8 @@ transitions:
       - place: exec_state
         pattern: done
       - place: resource
-        pattern: ~(resource)
-    command: echo run something in ~(resource)
+        pattern: ~(.in.resource)
+    command: echo run something in ~(.in.resource)
   - name: deallocate
     type: shell
     in:
@@ -48,6 +48,6 @@ transitions:
       - place: dealloc_state
         pattern: done
       - place: exec_state
-        pattern: ~(exec_state)
-    command: echo deallocate ~(resource)
+        pattern: ~(.in.exec_state)
+    command: echo deallocate ~(.in.resource)
 
