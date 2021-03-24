@@ -138,16 +138,29 @@ alias NetworkTransition = immutable NetworkTransition_;
 
 unittest
 {
+    import medal.logger : JSONLogger;
     import medal.message : TransitionSucceeded;
     import medal.transition.shell : ShellCommandTransition;
 
     import std.concurrency : LinkTerminated, receive, receiveOnly, thisTid;
-    import std.conv : to;
+    import std.conv : asOriginalType, to;
     import std.exception : assertNotThrown;
+    import std.file : mkdirRecurse, rmdirRecurse;
+    import std.path : buildPath;
+    import std.uuid : randomUUID;
     import std.variant : Variant;
 
+    auto dir = randomUUID.to!string;
+    mkdirRecurse(dir);
+    scope(success) rmdirRecurse(dir);
+
+    Config con = {
+        tmpdir: dir,
+        reuseParentTmpdir: true,
+    };
+
     immutable aef = [
-        "bar": SpecialPattern.Return,
+        "bar": SpecialPattern.Return.asOriginalType,
     ].to!ArcExpressionFunction_;
 
     immutable g = [
@@ -158,11 +171,12 @@ unittest
         "bar": SpecialPattern.Any,
     ].to!Guard_;
 
-    auto sct = new ShellCommandTransition("", "true ~(foo)", g, aef);
+    auto sct = new ShellCommandTransition("", "true ~(.in.foo)", g, aef);
 
     auto net = new NetworkTransition("", g, portGuard, [sct]);
 
-    auto tid = spawnFire(net, new BindingElement(["foo": "yahoo"].to!(Token[Place])), thisTid);
+    auto tid = spawnFire(net, new BindingElement(["foo": "yahoo"].to!(Token[Place])), thisTid,
+                         con, new JSONLogger(buildPath(dir, "medal.jsonl")));
     scope(exit)
     {
         assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);

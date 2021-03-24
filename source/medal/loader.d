@@ -106,28 +106,28 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
 {
     import medal.exception : loadEnforce;
 
-    import std.algorithm : canFind;
+    import std.algorithm : canFind, map;
     import std.array : array;
     import std.format : format;
     import std.range : empty;
     import std.regex : ctRegex, matchAll, matchFirst;
 
-    auto gPlaces = g.byKey.array;
+    auto gPlaces = g.byKey.map!(k => format!"in.%s"(k.name)).array;
     auto aefPlaces = aef.byKey.array;
 
     loadEnforce(!cmd.empty, "`command` field should not be an empty string", node);
 
     foreach(m; cmd.matchAll(ctRegex!(r"~(~~)*\(([^)]+)\)", "m")))
     {
-        auto pl = Place(m[2]);
+        auto pl = m[2];
         if (auto p = gPlaces.canFind(pl))
         {
             continue;
         }
-        else if (aefPlaces.canFind(pl))
+        else if (aefPlaces.map!(p => format!"out.%s"(p.name)).canFind(pl))
         {
-            loadEnforce(aef[pl].type == PatternType.File,
-                        format!"Refering the output place `%s` that is not `FILE`"(pl),
+            loadEnforce(aef[Place(pl)] == SpecialPattern.File,
+                        format!"Refering the output place `%s` that is not `%s`"(pl, SpecialPattern.File),
                         node);
         }
         else
@@ -394,7 +394,7 @@ ArcExpressionFunction loadArcExpressionFunction(Node node) @safe
                     .map!((n) {
                         auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
                         auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string;
-                        return tuple(pl, OutputPattern(pat));
+                        return tuple(pl, pat);
                     })
                     .assocArray;
     return () @trusted { return pats.assumeUnique; }();

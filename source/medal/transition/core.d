@@ -112,23 +112,10 @@ alias BindingElement = immutable BindingElement_;
 enum SpecialPattern: string
 {
     Any = "_", ///
-    Stdout = "STDOUT", ///
-    Stderr = "STDERR", ///
-    Return = "RETURN", ///
-    File   = "FILE", ///
-}
-
-///
-struct CommandResult
-{
-    ///
-    string stdout;
-    ///
-    string stderr;
-    ///
-    string[Place] files;
-    ///
-    int code;
+    Stdout = "~(.tr.stdout)",
+    Stderr = "~(.tr.stderr)", ///
+    Return = "~(.tr.return)", ///
+    File   = "~(.newfile)", ///
 }
 
 ///
@@ -190,92 +177,8 @@ enum PatternType
     PatternType type;
 }
 
-///
-@safe struct OutputPattern
-{
-    ///
-    this(string pat) @nogc nothrow pure
-    {
-        import std.algorithm : endsWith, startsWith;
 
-        if (pat.startsWith("~("))
-        {
-            assert(pat.endsWith(")"));
-            type = PatternType.Place;
-            pattern = pat[2..$-1];
-        }
-        else if (pat == SpecialPattern.Stdout)
-        {
-            type = PatternType.Stdout;
-            pattern = pat;
-        }
-        else if (pat == SpecialPattern.Stderr)
-        {
-            type = PatternType.Stderr;
-            pattern = pat;
-        }
-        else if (pat == SpecialPattern.File)
-        {
-            type = PatternType.File;
-            pattern = pat;
-        }
-        else if (pat == SpecialPattern.Return)
-        {
-            type = PatternType.Return;
-            pattern = pat;
-        }
-        else
-        {
-            type = PatternType.Constant;
-            pattern = pat;
-        }
-    }
-
-    ///
-    Token match(in Place place, in BindingElement be, in CommandResult result) const nothrow pure
-    {
-        import std.algorithm : find;
-        import std.array : byPair;
-        import std.conv : to;
-        import std.range : empty;
-
-        final switch(type) with(PatternType)
-        {
-        case Place:
-            return be.tokenElements.byPair.find!(pt => pt[0].name == pattern).front.value;
-        case Stdout:
-            return Token(result.stdout);
-        case Stderr:
-            return Token(result.stderr);
-        case File:
-            auto file = place in result.files;
-            assert(file);
-            assert(!file.empty);
-            return Token(*file);
-        case Return:
-            return Token(result.code.to!string);
-        case Constant:
-            return Token(pattern);
-        case Any:
-            assert(false);
-        }
-    }
-
-    ///
-    string toString() const nothrow pure
-    {
-        return type == PatternType.Place ? "~("~pattern~")" : pattern;
-    }
-
-    invariant
-    {
-        assert(type != PatternType.Any);
-    }
-
-    string pattern;
-    PatternType type;
-}
-
+alias OutputPattern = string;
 
 ///
 alias ArcExpressionFunction_ = OutputPattern[Place];
@@ -283,32 +186,37 @@ alias ArcExpressionFunction_ = OutputPattern[Place];
 alias ArcExpressionFunction = immutable ArcExpressionFunction_;
 
 ///
-BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandResult result) nothrow pure @safe
+auto apply(ArcExpressionFunction aef, JSONValue be) @safe
 {
     import std.algorithm : map;
     import std.array : assocArray, byPair;
-    import std.typecons : tuple;
+    import std.exception : assumeUnique;
 
-    immutable tokenElems = aef.byPair.map!((kv) {
+    auto tokenElems = aef.byPair.map!((kv) {
+        import std.array : replace;
+        import std.conv : asOriginalType;
+        import std.format : format;
+        import std.typecons : tuple;
+
         auto place = kv.key;
-        auto pat = kv.value;
-        return tuple(place, pat.match(place, be, result));
+        auto pat = kv.value.replace(SpecialPattern.File.asOriginalType, format!"~(out.%s)"(place));
+        return tuple(place, Token(pat.substitute(be)));
     }).assocArray;
-    return new BindingElement(tokenElems);
+    return new BindingElement(() @trusted { return tokenElems.assumeUnique; }() );
 }
 
 ///
-@safe nothrow pure unittest
+@safe unittest
 {
     import std.array : empty;
 
     ArcExpressionFunction aef;
-    auto be = aef.apply(BindingElement.init, CommandResult.init);
+    auto be = aef.apply(JSONValue.init);
     assert(be.tokenElements.empty);
 }
 
 ///
-@safe /*nothrow*/ pure unittest
+@safe unittest
 {
     import std.conv : to;
     import std.exception : assertNotThrown;
@@ -317,7 +225,7 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
         "foo": "constant-value",
     ].to!ArcExpressionFunction_;
 
-    auto be = aef.apply(BindingElement.init, CommandResult.init);
+    auto be = aef.apply(JSONValue((string[string]).init));
 
     assert(be == [
         "foo": "constant-value"
@@ -326,18 +234,21 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 }
 
 ///
-@safe /*nothrow*/ pure unittest
+@safe unittest
 {
-    import std.conv : to;
+    import std.conv : asOriginalType, to;
     import std.exception : assertNotThrown;
 
     immutable aef = [
-        "foo": SpecialPattern.Stdout,
+        "foo": SpecialPattern.Stdout.asOriginalType,
     ].to!ArcExpressionFunction_;
 
-    CommandResult result = { stdout: "stdout.txt" };
+    JSONValue result;
+    result["tr"] = JSONValue([
+        "stdout": "stdout.txt",
+    ]);
 
-    auto be = aef.apply(BindingElement.init, result);
+    auto be = aef.apply(result);
 
     assert(be == [
         "foo": "stdout.txt"
@@ -346,19 +257,23 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 }
 
 ///
-@safe /*nothrow*/ pure unittest
+@safe unittest
 {
-    import std.conv : to;
+    import std.conv : asOriginalType, to;
     import std.exception : assertNotThrown;
 
     immutable aef = [
-        "foo": SpecialPattern.Return,
+        "foo": SpecialPattern.Return.asOriginalType,
         "bar": "other-constant-value",
     ].to!ArcExpressionFunction_;
 
-    CommandResult result = { stdout: "stdout.txt", code: 0 };
+    JSONValue result;
+    result["tr"] = JSONValue([
+        "stdout": JSONValue("stdout.txt"),
+        "return": JSONValue(0),
+    ]);
 
-    auto be = aef.apply(BindingElement.init, result);
+    auto be = aef.apply(result);
 
     assert(be == [
         "foo": "0",
@@ -368,20 +283,21 @@ BindingElement apply(ArcExpressionFunction aef, in BindingElement be, CommandRes
 }
 
 ///
-@safe /*nothrow*/ pure unittest
+@safe unittest
 {
     import std.conv : to;
     import std.exception : assertNotThrown;
 
     immutable aef = [
-        "buzz": "~(foo)",
+        "buzz": "~(.in.foo)",
     ].to!ArcExpressionFunction_;
 
-    immutable be_ = [
-        "foo": "3"
-    ].to!(Token[Place]);
+    JSONValue result;
+    result["in"] = JSONValue([
+        "foo": 3,
+    ]);
 
-    auto ret = aef.apply(new BindingElement(be_), CommandResult.init);
+    auto ret = aef.apply(result);
 
     assert(ret == [
         "buzz": "3",
@@ -505,4 +421,150 @@ JSONValue criticalMsg(in Transition tr, in BindingElement be, in Config con, in 
     ret["success"] = false;
     ret["cause"] = cause;
     return ret;
+}
+
+auto substitute(string str, JSONValue be) @safe
+{
+    enum escape = '~';
+
+    auto aa = be.toAA;
+    string current = str;
+    string resulted;
+    do
+    {
+        import std.algorithm : findSplitAfter;
+
+        if (auto split = current.findSplitAfter([escape]))
+        {
+            import std.range : empty;
+
+            resulted ~= split[0][0..$-1];
+            auto rest = split[1];
+            if (rest.empty)
+            {
+                assert(false, "Invalid escape at the end of string");
+            }
+
+            switch(rest[0])
+            {
+            case escape:
+                resulted ~= escape;
+                current = rest[1..$];
+                break;
+            case '(':
+                if (auto sp = rest[1..$].findSplitAfter(")"))
+                {
+                    if (auto val = sp[0][0..$-1] in aa)
+                    {
+                        resulted ~= *val;
+                        current = sp[1][0..$];
+                    }
+                    else
+                    {
+                        assert(false, "Invalid reference: "~sp[0][0..$-1]);
+                    }
+                }
+                else
+                {
+                    assert(false, "No corresponding close paren");
+                }
+                break;
+            default:
+                import std.format : format;
+                assert(false, format!"Invalid escape `%s%s`"(escape, rest[0]));
+            }
+        }
+        else
+        {
+            resulted ~= current;
+            break;
+        }
+    }
+    while (true);
+    return resulted;
+}
+
+@safe unittest
+{
+    JSONValue val = [
+        "foo": "3",
+    ];
+    assert("echo ~(.foo)".substitute(val) == "echo 3");
+}
+
+@safe unittest
+{
+    JSONValue val = [
+        "foo": "3",
+    ];
+    assert("echo ~~(.foo)".substitute(val) == "echo ~(.foo)");
+}
+
+@safe unittest
+{
+    JSONValue val = [
+        "foo": "3",
+    ];
+    assert("echo ~~~(.foo)".substitute(val) == "echo ~3");
+}
+
+@safe unittest
+{
+    JSONValue val;
+    val["foo"] = "3";
+    val["out"] = [
+        "bar": "output.txt",
+    ];
+    assert("echo ~(.foo) > ~(.out.bar)".substitute(val) == "echo 3 > output.txt");
+}
+
+string[string] toAA(JSONValue val, string prefix = "") @trusted // JSONValue.opApply
+{
+    typeof(return) ret;
+    foreach(string k, JSONValue v; val)
+    {
+        import std.format : format;
+        import std.json : JSONType;
+
+        if (v.type == JSONType.object)
+        {
+            import std.algorithm : each;
+            import std.array : byPair;
+
+            auto subAA = v.toAA(format!"%s.%s"(prefix, k));
+            subAA.byPair.each!(kv => ret[kv.key] = kv.value);
+        }
+        else if (v.type == JSONType.string)
+        {
+            ret[format!"%s.%s"(prefix, k)] = v.get!string;
+        }
+        else
+        {
+            import std.conv : to;
+            ret[format!"%s.%s"(prefix, k)] = v.to!string;
+        }
+    }
+    return ret;
+}
+
+@safe unittest
+{
+    JSONValue obj;
+    obj["tmpdir"] = "/tmp";
+    assert(obj.toAA == [
+        ".tmpdir": "/tmp",
+    ]);
+}
+
+@safe unittest
+{
+    JSONValue obj;
+    obj["in"] = [
+        "foo": 1,
+        "bar": 2,
+    ];
+    assert(obj.toAA == [
+        ".in.foo": "1",
+        ".in.bar": "2",
+    ]);
 }
