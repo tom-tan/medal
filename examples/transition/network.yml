@@ -5,5 +5,5 @@ in:
     pattern: _
 out:
   - place: return
-    pattern: ~(.tr.return)
-command: echo ~(.in.message)
+    pattern: ~(tr.return)
+command: echo ~(in.message)

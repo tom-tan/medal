@@ -56,4 +56,4 @@ transitions:
     out:
       - place: pang
         pattern: finish
-    command: echo "smash $(cat ~(.in.pang1)) $(cat ~(.in.pang2))"
+    command: echo "smash $(cat ~(in.pang1)) $(cat ~(in.pang2))"

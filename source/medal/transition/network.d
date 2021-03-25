@@ -171,7 +171,7 @@ unittest
         "bar": SpecialPattern.Any,
     ].to!Guard_;
 
-    auto sct = new ShellCommandTransition("", "true ~(.in.foo)", g, aef);
+    auto sct = new ShellCommandTransition("", "true ~(in.foo)", g, aef);
 
     auto net = new NetworkTransition("", g, portGuard, [sct]);
 

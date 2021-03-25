@@ -112,10 +112,10 @@ alias BindingElement = immutable BindingElement_;
 enum SpecialPattern: string
 {
     Any = "_", ///
-    Stdout = "~(.tr.stdout)",
-    Stderr = "~(.tr.stderr)", ///
-    Return = "~(.tr.return)", ///
-    File   = "~(.newfile)", ///
+    Stdout = "~(tr.stdout)",
+    Stderr = "~(tr.stderr)", ///
+    Return = "~(tr.return)", ///
+    File   = "~(newfile)", ///
 }
 
 ///
@@ -199,7 +199,7 @@ auto apply(ArcExpressionFunction aef, JSONValue be) @safe
         import std.typecons : tuple;
 
         auto place = kv.key;
-        auto pat = kv.value.replace(SpecialPattern.File.asOriginalType, format!"~(.out.%s)"(place));
+        auto pat = kv.value.replace(SpecialPattern.File.asOriginalType, format!"~(out.%s)"(place));
         return tuple(place, Token(pat.substitute(be)));
     }).assocArray;
     return new BindingElement(() @trusted { return tokenElems.assumeUnique; }() );
@@ -289,7 +289,7 @@ auto apply(ArcExpressionFunction aef, JSONValue be) @safe
     import std.exception : assertNotThrown;
 
     immutable aef = [
-        "buzz": "~(.in.foo)",
+        "buzz": "~(in.foo)",
     ].to!ArcExpressionFunction_;
 
     JSONValue result;
@@ -489,7 +489,7 @@ auto substitute(string str, JSONValue be) @safe
     JSONValue val = [
         "foo": "3",
     ];
-    assert("echo ~(.foo)".substitute(val) == "echo 3");
+    assert("echo ~(foo)".substitute(val) == "echo 3");
 }
 
 @safe unittest
@@ -497,7 +497,7 @@ auto substitute(string str, JSONValue be) @safe
     JSONValue val = [
         "foo": "3",
     ];
-    assert("echo ~~(.foo)".substitute(val) == "echo ~(.foo)");
+    assert("echo ~~(foo)".substitute(val) == "echo ~(foo)");
 }
 
 @safe unittest
@@ -505,7 +505,7 @@ auto substitute(string str, JSONValue be) @safe
     JSONValue val = [
         "foo": "3",
     ];
-    assert("echo ~~~(.foo)".substitute(val) == "echo ~3");
+    assert("echo ~~~(foo)".substitute(val) == "echo ~3");
 }
 
 @safe unittest
@@ -515,7 +515,7 @@ auto substitute(string str, JSONValue be) @safe
     val["out"] = [
         "bar": "output.txt",
     ];
-    assert("echo ~(.foo) > ~(.out.bar)".substitute(val) == "echo 3 > output.txt");
+    assert("echo ~(foo) > ~(out.bar)".substitute(val) == "echo 3 > output.txt");
 }
 
 string[string] toAA(JSONValue val, string prefix = "") @trusted // JSONValue.opApply
@@ -525,23 +525,26 @@ string[string] toAA(JSONValue val, string prefix = "") @trusted // JSONValue.opA
     {
         import std.format : format;
         import std.json : JSONType;
+        import std.range : empty;
+
+        auto key = prefix.empty ? k : format!"%s.%s"(prefix, k);
 
         if (v.type == JSONType.object)
         {
             import std.algorithm : each;
             import std.array : byPair;
 
-            auto subAA = v.toAA(format!"%s.%s"(prefix, k));
+            auto subAA = v.toAA(key);
             subAA.byPair.each!(kv => ret[kv.key] = kv.value);
         }
         else if (v.type == JSONType.string)
         {
-            ret[format!"%s.%s"(prefix, k)] = v.get!string;
+            ret[key] = v.get!string;
         }
         else
         {
             import std.conv : to;
-            ret[format!"%s.%s"(prefix, k)] = v.to!string;
+            ret[key] = v.to!string;
         }
     }
     return ret;
@@ -552,7 +555,7 @@ string[string] toAA(JSONValue val, string prefix = "") @trusted // JSONValue.opA
     JSONValue obj;
     obj["tmpdir"] = "/tmp";
     assert(obj.toAA == [
-        ".tmpdir": "/tmp",
+        "tmpdir": "/tmp",
     ]);
 }
 
@@ -564,7 +567,7 @@ string[string] toAA(JSONValue val, string prefix = "") @trusted // JSONValue.opA
         "bar": 2,
     ];
     assert(obj.toAA == [
-        ".in.foo": "1",
-        ".in.bar": "2",
+        "in.foo": "1",
+        "in.bar": "2",
     ]);
 }
