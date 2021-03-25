@@ -197,19 +197,12 @@ unittest
 immutable class InvocationTransition_: Transition
 {
     ///
-    this(in string name, in Guard g,
-         immutable Place[Place] inPorts, immutable Place[Place] outPorts,
+    this(in string name, in Guard g, in ArcExpressionFunction aef,
+         immutable Place[Place] inPorts,
          Transition tr, immutable Config con = Config.init) nothrow pure @trusted
     {
-        import std.algorithm : map;
-        import std.array : assocArray;
-        import std.exception : assumeUnique;
-        import std.typecons : tuple;
-
-        auto aef = outPorts.byValue.map!(p => tuple(cast()p, OutputPattern.init)).assocArray;
-        super(name, g, aef.assumeUnique);
+        super(name, g, aef);
         inputPorts = inPorts;
-        outputPorts = outPorts;
         subTransition = tr;
         config = con;
     }
@@ -234,32 +227,48 @@ protected:
 
         receive(
             (TransitionSucceeded ts) {
-                auto resultedBe = port(ts.tokenElements, outputPorts);
-                logger.info(outputPortMsg(resultedBe, ts.tokenElements, con, c));
-                logger.trace(successMsg(initBe, resultedBe, con));
+                import std.algorithm : map;
+                import std.array : assocArray, byPair;
+                import std.typecons : tuple;
+
+                auto aa = ts.tokenElements
+                            .tokenElements
+                            .byPair
+                            .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
+                            .assocArray;
+                auto resultedBe = arcExpFun.apply(JSONValue(aa));
+                logger.info(successMsg(initBe, resultedBe, con));
                 send(networkTid, TransitionSucceeded(resultedBe));
             },
             (TransitionFailed tf) {
                 auto msg = "internal transition failed";
-                logger.trace(failureMsg(initBe, con, msg));
+                logger.info(failureMsg(initBe, con, msg));
                 send(networkTid, TransitionFailed(initBe, msg));
             },
             (SignalSent ss) {
                 send(tid, ss);
                 receive(
                     (TransitionSucceeded ts) {
-                        auto resultedBe = port(ts.tokenElements, outputPorts);
-                        logger.info(outputPortMsg(resultedBe, ts.tokenElements, con, c));
-                        logger.trace(successMsg(initBe, resultedBe, con));
+                        import std.algorithm : map;
+                        import std.array : assocArray, byPair;
+                        import std.typecons : tuple;
+
+                        auto aa = ts.tokenElements
+                                    .tokenElements
+                                    .byPair
+                                    .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
+                                    .assocArray;
+                        auto resultedBe = arcExpFun.apply(JSONValue(aa));
+                        logger.info(successMsg(initBe, resultedBe, con));
                         send(networkTid, TransitionSucceeded(resultedBe));
                     },
                     (TransitionFailed tf) {
                         auto msg = "internal transition failed";
-                        logger.trace(failureMsg(initBe, con, msg));
+                        logger.info(failureMsg(initBe, con, msg));
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                     (TransitionInterrupted ti) {
-                        logger.trace(failureMsg(initBe, con, "transition interrupted"));
+                        logger.info(failureMsg(initBe, con, "transition interrupted"));
                         send(networkTid, TransitionInterrupted(initBe));
                     },
                     (Variant v) {
@@ -308,7 +317,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["in-port"] = inputPorts.to!(string[string]);
-        ret["out-port"] = outputPorts.to!(string[string]);
+        ret["out"] = arcExpFun.to!(string[string]);
         ret["sub-transition"] = subTransition.name;
         return ret;
     }
@@ -342,7 +351,7 @@ private:
         ret["name"] = name;
         ret["in"] = be.tokenElements.to!(string[string]);
         ret["in-port"] = inputPorts.to!(string[string]);
-        ret["out-port"] = outputPorts.to!(string[string]);
+        ret["out"] = arcExpFun.to!(string[string]);
         ret["sub-transition"] = subTransition.name;
         ret["success"] = false;
         ret["cause"] = cause;
@@ -370,29 +379,7 @@ private:
         return ret;
     }
 
-    JSONValue outputPortMsg(in BindingElement parentBe, in BindingElement thisBe,
-                            in Config parentCon, in Config thisCon) const pure @safe
-    {
-        import std.conv : to;
-
-        JSONValue ret;
-        ret["sender"] = "port";
-        ret["event"] = "one-shot";
-        ret["from"] = JSONValue([
-            "tag": JSONValue(thisCon.tag),
-            "out": JSONValue(thisBe.tokenElements.to!(string[string])),
-        ]);
-        ret["to"] = JSONValue([
-            "tag": JSONValue(parentCon.tag),
-            "out": JSONValue(parentBe.tokenElements.to!(string[string])),
-        ]);
-        ret["name"] = name;
-        ret["sub-transition"] = subTransition.name;
-        return ret;
-    }
-
     Place[Place] inputPorts;
-    Place[Place] outputPorts;
     Transition subTransition;
     Config config;
 }

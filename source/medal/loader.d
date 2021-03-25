@@ -69,8 +69,8 @@ do
 
     auto aef = "out" in node ? loadArcExpressionFunction(node["out"])
                              : ArcExpressionFunction.init;
-    enforceValidAEF("out" in node ? node["out"] : Node((Node[]).init),
-                    "in" in node ? node["in"] : Node((Node[]).init));
+    enforceValidShellAEF("out" in node ? node["out"] : Node((Node[]).init),
+                         "in" in node ? node["in"] : Node((Node[]).init));
 
     auto cmdNode = *loadEnforce("command" in node,
                                 "`command` field is necessary for shell transitions",
@@ -81,9 +81,9 @@ do
     return new ShellCommandTransition(name, command, g, aef);
 }
 
-void enforceValidAEF(Node aef, Node inp) @safe
+void enforceValidShellAEF(Node aef, Node inp) @safe
 {
-    import std.algorithm : any, map;
+    import std.algorithm : canFind, map;
     import std.array : array;
 
     auto inpNames = inp.sequence.map!`a["place"].get!string`.array;
@@ -102,13 +102,21 @@ void enforceValidAEF(Node aef, Node inp) @safe
             {
             case "in":
                 auto place = pats[1..$].join(".");
-                loadEnforce(inpNames.any!(n => n == place),
-                            format!"Invalid reference to `%s`: no such input place"(c[1]),
+                loadEnforce(inpNames.canFind(place),
+                            format!"Invalid reference to `%s`: no such input places"(r),
                             n["pattern"]);
                 break;
-            case SpecialPattern.File:
+            case "tr":
+                loadEnforce(r == SpecialPattern.Stdout[2..$-1] ||
+                            r == SpecialPattern.Stderr[2..$-1] ||
+                            r == SpecialPattern.Return[2..$-1],
+                            format!"Invalid reference to `%s`"(r),
+                            n["pattern"]);
+                break;
+            case SpecialPattern.File[2..$-1]:
                 break;
             default:
+                loadEnforce(false, format!"Invalid reference to `%s`"(r), n["pattern"]);
                 break;
             }
         }
@@ -268,10 +276,11 @@ do
     enforceInPortIsValid(itpl[1], tr.guard, *inode);
 
     auto onode = loadEnforce("out" in node, "`out` field is needed in invocation transitions", node);
-    auto oPort = loadOutputPort(*onode);
-    enforceOutPortIsValid(oPort, tr.arcExpFun, *onode);
+    auto aef = loadArcExpressionFunction(*onode);
 
-    return new InvocationTransition(name, itpl[0], itpl[1], oPort, tr, con);
+    enforceValidInvocationAEF(*onode, *inode, tr);
+
+    return new InvocationTransition(name, itpl[0], aef, itpl[1], tr, con);
 }
 
 void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node) @safe
@@ -299,26 +308,49 @@ void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node) @saf
     loadEnforce(gp.empty, format!"Missing ports to: %-(%s, %)"(gp), node);
 }
 
-void enforceOutPortIsValid(in Place[Place] ports, ArcExpressionFunction aef, Node node) @safe
+void enforceValidInvocationAEF(Node aef, Node inp, Transition tr) @safe
 {
-    import medal.exception : loadEnforce;
-
-    import std.algorithm : map, setDifference, sort;
+    import std.algorithm : canFind, map;
     import std.array : array;
-    import std.format : format;
 
-    auto portPlaces = ports.byKey
-                           .map!"a.name.dup"
-                           .array
-                           .sort()
-                           .array;
-    auto aefPlaces = aef.byKey
-                        .map!"a.name"
-                        .array
-                        .sort()
-                        .array;
-    auto pa = setDifference(portPlaces, aefPlaces);
-    loadEnforce(pa.empty, format!"Ports from non-existent places: %-(%s, %)"(pa), node);
+    auto inpNames = inp.sequence.map!`a["place"].get!string`.array;
+    foreach(Node n; aef)
+    {
+        import std.regex : ctRegex, matchFirst;
+
+        if (auto c = n["pattern"].get!string.matchFirst(ctRegex!`^~\((.+)\)$`))
+        {
+            import medal.exception : loadEnforce;
+            import std.array : join, split;
+            import std.format : format;
+            auto r = c[1];
+            auto pats = r.split(".");
+            switch(pats[0])
+            {
+            case "in":
+                auto place = pats[1..$].join(".");
+                loadEnforce(inpNames.canFind(place),
+                            format!"Invalid reference to `%s`: no such input places"(r),
+                            n["pattern"]);
+                break;
+            case "tr":
+                auto place = pats[1..$].join(".");
+                auto outNames = tr.arcExpFun.byKey.map!"a.name";
+                loadEnforce(outNames.canFind(place),
+                            format!"Invalid reference to `%s`"(r),
+                            n["pattern"]);
+                break;
+            case SpecialPattern.File[2..$-1]:
+                loadEnforce(false,
+                            format!"Invalid reference to `%s`: not supported by invocation transitions"(r),
+                            n["pattern"]);
+                break;
+            default:
+                loadEnforce(false, format!"Invalid reference to `%s`"(r), n["pattern"]);
+                break;
+            }
+        }
+    }
 }
 
 ///

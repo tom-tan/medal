@@ -31,8 +31,8 @@ transitions:
         pattern: _
         port-to: ping
     out:
-      - place: pang
-        port-to: pang1
+      - place: pang1
+        pattern: ~(tr.pang)
   - name: pong2
     type: invocation
     use: subnetwork.yml
@@ -44,8 +44,8 @@ transitions:
         pattern: _
         port-to: ping
     out:
-      - place: pang
-        port-to: pang2
+      - place: pang2
+        pattern: ~(tr.pang)
   - name: smash
     type: shell
     in:
