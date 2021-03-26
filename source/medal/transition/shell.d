@@ -96,10 +96,10 @@ immutable class ShellCommandTransition_: Transition
             newEnv["HOME"] = environment["HOME"];
         }
 
-        auto stdoutName = format!"tr-%s-stdout-%s"(name, randomUUID);
-        auto sout = File(buildPath(tmpdir, stdoutName), "w");
-        auto stderrName = format!"tr-%s-stderr-%s"(name, randomUUID);
-        auto serr = File(buildPath(tmpdir, stderrName), "w");
+        auto stdoutName = buildPath(tmpdir, format!"tr-%s-stdout-%s"(name, randomUUID));
+        auto sout = File(stdoutName, "w");
+        auto stderrName = buildPath(tmpdir, format!"tr-%s-stderr-%s"(name, randomUUID));
+        auto serr = File(stderrName, "w");
 
         internalBE["tr"] = [
             "stdout": stdoutName,
@@ -318,7 +318,7 @@ immutable class ShellCommandTransition_: Transition
         auto token = Place("foo") in ts.tokenElements.tokenElements;
         assert(token);
 
-        auto name = buildPath(dir, token.value);
+        auto name = token.value;
         assert(name.exists);
         scope(exit) name.remove;
         assert(name.readText == "bar\n");
