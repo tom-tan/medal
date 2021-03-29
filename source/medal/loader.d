@@ -152,6 +152,10 @@ void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node no
                         format!"Refering the output place `%s` that is not `%s`"(placeName, SpecialPattern.File),
                         node);
         }
+        else if (["tag", "tmpdir", "workdir"].canFind(pl))
+        {
+            continue;
+        }
         else
         {
             import medal.exception : LoadError;
