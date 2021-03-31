@@ -6,7 +6,7 @@
 module medal.transition.core;
 
 import medal.config : Config;
-import medal.logger : Logger, NullLogger;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers;
 
 import std.concurrency : Tid;
 import std.json : JSONValue;
@@ -314,7 +314,7 @@ alias Guard = immutable Guard_;
 immutable abstract class Transition_
 {
     ///
-    protected abstract void fire(in BindingElement be, Tid networkTid, Config con, Logger logger);
+    protected abstract void fire(in BindingElement be, Tid networkTid, Config con, Logger[LogType] loggers);
 
     ///
     BindingElement fireable(Store)(in Store s) nothrow pure @trusted
@@ -385,28 +385,31 @@ immutable abstract class Transition_
 alias Transition = immutable Transition_;
 
 ///
-Tid spawnFire(in Transition tr, in BindingElement be, Tid tid, Config con = Config.init, Logger logger = new NullLogger)
+Tid spawnFire(in Transition tr, in BindingElement be, Tid tid,
+              Config con = Config.init,
+              Logger[LogType] loggers = nullLoggers)
 {
     import core.exception : AssertError;
     import std.concurrency : send, spawnLinked;
     import std.format : format;
 
-    return spawnLinked((in Transition tr, in BindingElement be, Tid tid, Config con, shared Logger logger) {
+    return spawnLinked((in Transition tr, in BindingElement be, Tid tid,
+                        Config con, shared(Logger[LogType]) loggers) {
         try
         {
-            tr.fire(be, tid, con, cast()logger);
+            tr.fire(be, tid, con, cast(Logger[LogType])loggers);
         }
         catch(Exception e)
         {
-            (cast()logger).critical(criticalMsg(tr, be, con, format!"Unknown exception: %s"(e)));
+            (cast()loggers[LogType.System]).critical(criticalMsg(tr, be, con, format!"Unknown exception: %s"(e)));
             send(tid, cast(shared)e);
         }
         catch(AssertError e)
         {
-            (cast()logger).critical(criticalMsg(tr, be, con, format!"Assersion failure: %s"(e)));
+            (cast()loggers[LogType.System]).critical(criticalMsg(tr, be, con, format!"Assersion failure: %s"(e)));
             send(tid, cast(shared)e);
         }
-    }, tr, be, tid, con, cast(shared)logger);
+    }, tr, be, tid, con, cast(shared)loggers);
 }
 
 JSONValue criticalMsg(in Transition tr, in BindingElement be, in Config con, in string cause) pure @safe

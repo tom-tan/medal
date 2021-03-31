@@ -19,7 +19,7 @@ int medalMain(string[] args)
     import dyaml : Loader, Node;
     import medal.config : Config;
     import medal.loader : loadBindingElement, loadTransition;
-    import medal.logger : JSONLogger, LogLevel, sharedLog;
+    import medal.logger : JSONLogger, LogLevel, LogType, sharedLog;
     import medal.message : SignalSent, TransitionInterrupted, TransitionFailed;
     import medal.transition.core : BindingElement, spawnFire, Transition;
     import std.concurrency : receive, thisTid;
@@ -28,13 +28,16 @@ int medalMain(string[] args)
     import std.getopt : config, getopt;
     import std.path : absolutePath;
     import std.range : empty;
-    import std.stdio : stderr;
+    import std.stdio : File, stderr;
     import std.typecons : Rebindable;
     import std.variant : Variant;
 
-    LogLevel lv = LogLevel.info;
+    auto appLv = LogLevel.info;
+    auto sysLv = LogLevel.info;
+    Logger[LogType] loggers;
     string initFile;
-    string logFile;
+    string appLogFile;
+    string sysLogFile;
     string tmpdir;
     bool leaveTmpdir;
     string workdir;
@@ -42,9 +45,15 @@ int medalMain(string[] args)
     auto helpInfo = args.getopt(
         config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
-        "quiet", "Do not print any logs", () { lv = LogLevel.off; },
-        "debug", "Enable debug logs", () { lv = LogLevel.trace; },
-        "log", "Specify log destination (default: stderr)", &logFile,
+        "sys-quiet", "Do not print any system logs", () { sysLv = LogLevel.off; },
+        "sys-verbose", "Enable verbose system logs", () { sysLv = LogLevel.trace; },
+        "sys-log", "Specify system log destination (default: stderr)", &sysLogFile,
+        "app-quiet", "Do not print any application logs", () { appLv = LogLevel.off; },
+        "app-verbose", "Enable verbose application logs", () { appLv = LogLevel.trace; },
+        "app-log", "Specify application log destination (default: stderr)", &appLogFile,
+        "quiet", "Same as `--sys-quiet --app-quiet`", () { sysLv = appLv = LogLevel.off; },
+        "verbose", "Same as `--sys-verbose --app-verbose`", () { sysLv = appLv = LogLevel.trace; },
+        "log", "Same as `--sys-log=file --app-log=file`", (string _, string name) { sysLogFile = appLogFile = name; },
         "tmpdir", "Specify temporary directory", &tmpdir,
         "leave-tmpdir", "Leave temporary directory after execution", &leaveTmpdir,
         "workdir", "Specify working directory", &workdir,
@@ -64,14 +73,21 @@ EOS".outdent[0..$-1])(args[0].baseName);
         return 0;
     }
 
-    if (logFile.empty)
+    if (sysLogFile == appLogFile)
     {
-        sharedLog = new JSONLogger(stderr, lv);
+        auto f = sysLogFile.empty ? stderr : File(sysLogFile, "w");
+        loggers[LogType.System] = new JSONLogger(f, sysLv);
+        loggers[LogType.App] = new JSONLogger(f, appLv);
     }
     else
     {
-        sharedLog = new JSONLogger(logFile, lv);
+        auto sf = sysLogFile.empty ? stderr : File(sysLogFile, "w");
+        loggers[LogType.System] = new JSONLogger(sf, sysLv);
+
+        auto af = appLogFile.empty ? stderr : File(appLogFile, "w");
+        loggers[LogType.App] = new JSONLogger(af, appLv);
     }
+    sharedLog = loggers[LogType.System];
 
     if (tmpdir.empty)
     {
@@ -171,7 +187,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
 
         kill(thisProcessID, SIGQUIT);
     }
-    auto mainTid = spawnFire(tr, initBe, thisTid, con, sharedLog);
+    auto mainTid = spawnFire(tr, initBe, thisTid, con, loggers);
 
     bool success;
     receive(

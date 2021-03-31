@@ -6,7 +6,7 @@
 module medal.engine;
 
 import medal.config : Config;
-import medal.logger: Logger, NullLogger;
+import medal.logger: Logger, LogType, NullLogger, nullLoggers;
 import medal.message;
 import medal.transition.core;
 
@@ -39,12 +39,12 @@ immutable class EngineStopTransition_: Transition
     }
 
     ///
-    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger logger = new NullLogger) const
+    override void fire(in BindingElement be, Tid networkTid, Config config = Config.init, Logger[LogType] loggers = nullLoggers) const
     {
         import std.concurrency : send;
 
-        scope(success) logger.trace(oneShotMsg(be, config));
-        scope(failure) logger.critical(failureMsg(be, config, "unknown error"));
+        scope(success) loggers[LogType.System].trace(oneShotMsg(be, config));
+        scope(failure) loggers[LogType.System].critical(failureMsg(be, config, "unknown error"));
         send(networkTid, EngineWillStop(be));
     }
 
@@ -117,7 +117,7 @@ struct Engine
     }
 
     ///
-    auto run(in BindingElement initBe, Config config = Config.init, Logger logger = new NullLogger)
+    auto run(in BindingElement initBe, Config config = Config.init, Logger[LogType] loggers = nullLoggers)
     {
         import std.concurrency : receive, send, thisTid;
         import std.container.rbtree : RedBlackTree;
@@ -129,16 +129,17 @@ struct Engine
 
         alias ResultType = Tuple!(EngineResult, "status", BindingElement, "bindingElement");
 
+        auto sysLogger = loggers[LogType.System];
 
-        logger.trace(startMsg(initBe, config));
-        scope(failure) logger.critical(failureMsg(initBe, config, "Unknown error"));
+        sysLogger.trace(startMsg(initBe, config));
+        scope(failure) sysLogger.critical(failureMsg(initBe, config, "Unknown error"));
 
         if (!config.reuseParentTmpdir && !config.tmpdir.empty)
         {
             import std.file : exists, mkdirRecurse;
             if (config.tmpdir.exists)
             {
-                logger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
+                sysLogger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
                 return ResultType(EngineResult.failed, BindingElement.init);
             }
             // it will be deleted by root (app.main)
@@ -156,7 +157,7 @@ struct Engine
         {
             receive(
                 (TransitionSucceeded ts) {
-                    logger.trace(recvMsg(ts, config));
+                    sysLogger.trace(recvMsg(ts, config));
                     store.put(ts.tokenElements);
                     auto candidates = rule.dispatch(ts.tokenElements);
                     while (!candidates.empty)
@@ -167,46 +168,46 @@ struct Engine
                         if (auto be = c.fireable(store))
                         {
                             store.remove(be);
-                            auto tid = spawnFire(c, be, thisTid, config, logger);
+                            auto tid = spawnFire(c, be, thisTid, config, loggers);
                             //trTids.insert(tid);
                             trTids[tid.to!string] = tid;
-                            logger.trace(fireMsg(c, be, tid, config));
+                            sysLogger.trace(fireMsg(c, be, tid, config));
                             continue;
                         }
                         candidates.popFront;
                     }
                 },
                 (TransitionFailed tf) {
-                    logger.trace(recvMsg(tf, config));
+                    sysLogger.trace(recvMsg(tf, config));
                     store.put(tf.tokenElements);
                     running = false;
                 },
                 (in SignalSent sig) {
-                    logger.trace(recvMsg(sig, config));
+                    sysLogger.trace(recvMsg(sig, config));
                     running = false;
                     interrupted = true;
                 },
                 (in EngineWillStop ews) {
-                    logger.trace(recvMsg(ews, config));
+                    sysLogger.trace(recvMsg(ews, config));
                     retBe = ews.bindingElement;
                     running = false;
                 },
                 (LinkTerminated lt) {
-                    logger.trace(recvMsg(lt, config));
+                    sysLogger.trace(recvMsg(lt, config));
                     //trTids.removeKey(lt.tid);
                     trTids.remove(lt.tid.to!string);
                 },
                 (Variant v) {
                     import std.format : format;
                     auto msg = format!"unknown message (%s)"(v);
-                    logger.critical(failureMsg(initBe, config, msg)); // TODO: fix
+                    sysLogger.critical(failureMsg(initBe, config, msg)); // TODO: fix
                     running = false;
                 },
             );
         }
 
-        killTransitions(trTids, logger);
-        auto success = waitTransitions(trTids, logger, config);
+        killTransitions(trTids, sysLogger);
+        auto success = waitTransitions(trTids, sysLogger, config);
 
         auto status = interrupted ? EngineResult.interrupted :
                       !retBe.empty && success ? EngineResult.succeeded :
@@ -215,7 +216,7 @@ struct Engine
         auto mode = status == EngineResult.succeeded ? ExitMode.success :
                                                        ExitMode.failure;
         Rule exitRule = exitRules[mode];
-        logger.tracef("switch to %s", mode);
+        sysLogger.tracef("switch to %s", mode);
 
         send(thisTid, TransitionSucceeded(new BindingElement));
         bool firstRun = true;
@@ -224,7 +225,7 @@ struct Engine
             receive(
                 (TransitionSucceeded ts) {
                     firstRun = false;
-                    logger.trace(recvMsg(ts, config));
+                    sysLogger.trace(recvMsg(ts, config));
                     store.put(ts.tokenElements);
                     auto candidates = exitRule.dispatch(ts.tokenElements);
                     while (!candidates.empty)
@@ -235,10 +236,10 @@ struct Engine
                         if (auto be = c.fireable(store))
                         {
                             store.remove(be);
-                            auto tid = spawnFire(c, be, thisTid, config, logger);
+                            auto tid = spawnFire(c, be, thisTid, config, loggers);
                             //trTids.insert(tid);
                             trTids[tid.to!string] = tid;
-                            logger.trace(fireMsg(c, be, tid, config));
+                            sysLogger.trace(fireMsg(c, be, tid, config));
                             continue;
                         }
                         candidates.popFront;
@@ -246,27 +247,27 @@ struct Engine
                 },
                 (TransitionFailed tf) {
                     // it does not roll back to prevent eternal loops
-                    logger.trace(recvMsg(tf, config));
+                    sysLogger.trace(recvMsg(tf, config));
                     // store.put(tf.tokenElements);
                 },
                 (in SignalSent sig) {
                     // ignored
-                    logger.trace(recvMsg(sig, config));
+                    sysLogger.trace(recvMsg(sig, config));
                 },
                 (LinkTerminated lt) {
-                    logger.trace(recvMsg(lt, config));
+                    sysLogger.trace(recvMsg(lt, config));
                     //trTids.removeKey(lt.tid);
                     trTids.remove(lt.tid.to!string);
                 },
                 (Variant v) {
                     import std.format : format;
                     auto msg = format!"unknown message (%s)"(v);
-                    logger.critical(failureMsg(initBe, config, msg)); // TODO: fix
+                    sysLogger.critical(failureMsg(initBe, config, msg)); // TODO: fix
                 },
             );
         }
 
-        logger.trace(successMsg(retBe, config));
+        sysLogger.trace(successMsg(retBe, config));
         return ResultType(status, retBe);
     }
 

@@ -6,7 +6,7 @@
 module medal.transition.network;
 
 import medal.config : Config;
-import medal.logger : Logger, NullLogger;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers;
 import medal.transition.core;
 
 import std.concurrency : Tid;
@@ -41,7 +41,7 @@ immutable class NetworkTransition_: Transition
 protected:
     ///
     override void fire(in BindingElement initBe, Tid networkTid,
-                       Config con = Config.init, Logger logger = new NullLogger) const
+                       Config con = Config.init, Logger[LogType] loggers = nullLoggers) const
     {
         import medal.engine : Engine, EngineResult;
         import medal.message : TransitionInterrupted, TransitionFailed, TransitionSucceeded;
@@ -49,28 +49,30 @@ protected:
         import std.algorithm : either;
         import std.concurrency : send;
 
+        auto sysLogger = loggers[LogType.System];
+
         // NetworkTransition is only called by main() or InvocationTransition
         // Therefore it should use the parent `tmpdir` as is.
         auto netConfig = config.inherits(con, true);
 
-        logger.info(startMsg(initBe, netConfig));
-        scope(failure) logger.critical(failureMsg(initBe, netConfig, "Unknown error"));
+        sysLogger.info(startMsg(initBe, netConfig));
+        scope(failure) sysLogger.critical(failureMsg(initBe, netConfig, "Unknown error"));
 
         auto engine = Engine(transitions, stopGuard,
                              exitTransitions, successTransitions, failureTransitions);
-        auto result = engine.run(initBe, netConfig, logger);
+        auto result = engine.run(initBe, netConfig, loggers);
         final switch (result.status) with (EngineResult)
         {
         case succeeded:
-            logger.info(successMsg(initBe, result.bindingElement, netConfig));
+            sysLogger.info(successMsg(initBe, result.bindingElement, netConfig));
             send(networkTid, TransitionSucceeded(result.bindingElement));
             break;
         case failed:
-            logger.info(failureMsg(initBe, netConfig, "internal transition failed"));
+            sysLogger.info(failureMsg(initBe, netConfig, "internal transition failed"));
             send(networkTid, TransitionFailed(initBe));
             break;
         case interrupted:
-            logger.info(failureMsg(initBe, netConfig, "transition interrupted"));
+            sysLogger.info(failureMsg(initBe, netConfig, "transition interrupted"));
             send(networkTid, TransitionInterrupted(initBe));
             break;
         }
@@ -176,7 +178,7 @@ unittest
     auto net = new NetworkTransition("", g, portGuard, [sct]);
 
     auto tid = spawnFire(net, new BindingElement(["foo": "yahoo"].to!(Token[Place])), thisTid,
-                         con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                         con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
     scope(exit)
     {
         assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -210,20 +212,22 @@ immutable class InvocationTransition_: Transition
 protected:
     ///
     override void fire(in BindingElement initBe, Tid networkTid, Config con = Config.init,
-                       Logger logger = new NullLogger) const
+                       Logger[LogType] loggers = nullLoggers) const
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import std.concurrency : receive, send, thisTid;
         import std.variant : Variant;
 
-        logger.trace(startMsg(initBe, con));
+        auto sysLogger = loggers[LogType.System];
+
+        sysLogger.trace(startMsg(initBe, con));
 
         auto c = config.inherits(con);
-        scope(failure) logger.critical(failureMsg(initBe, c, "Unknown error"));
+        scope(failure) sysLogger.critical(failureMsg(initBe, c, "Unknown error"));
 
         auto portedBe = port(initBe, inputPorts);
-        logger.info(inputPortMsg(initBe, portedBe, con, c));
-        auto tid = spawnFire(subTransition, portedBe, thisTid, c, logger);
+        sysLogger.info(inputPortMsg(initBe, portedBe, con, c));
+        auto tid = spawnFire(subTransition, portedBe, thisTid, c, loggers);
 
         receive(
             (TransitionSucceeded ts) {
@@ -237,12 +241,12 @@ protected:
                             .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
                             .assocArray;
                 auto resultedBe = arcExpFun.apply(JSONValue(aa));
-                logger.info(successMsg(initBe, resultedBe, con));
+                sysLogger.info(successMsg(initBe, resultedBe, con));
                 send(networkTid, TransitionSucceeded(resultedBe));
             },
             (TransitionFailed tf) {
                 auto msg = "internal transition failed";
-                logger.info(failureMsg(initBe, con, msg));
+                sysLogger.info(failureMsg(initBe, con, msg));
                 send(networkTid, TransitionFailed(initBe, msg));
             },
             (SignalSent ss) {
@@ -259,22 +263,22 @@ protected:
                                     .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
                                     .assocArray;
                         auto resultedBe = arcExpFun.apply(JSONValue(aa));
-                        logger.info(successMsg(initBe, resultedBe, con));
+                        sysLogger.info(successMsg(initBe, resultedBe, con));
                         send(networkTid, TransitionSucceeded(resultedBe));
                     },
                     (TransitionFailed tf) {
                         auto msg = "internal transition failed";
-                        logger.info(failureMsg(initBe, con, msg));
+                        sysLogger.info(failureMsg(initBe, con, msg));
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                     (TransitionInterrupted ti) {
-                        logger.info(failureMsg(initBe, con, "transition interrupted"));
+                        sysLogger.info(failureMsg(initBe, con, "transition interrupted"));
                         send(networkTid, TransitionInterrupted(initBe));
                     },
                     (Variant v) {
                         import std.format : format;
                         auto msg = format!"unknown message (%s)"(v);
-                        logger.trace(failureMsg(initBe, con, msg));
+                        sysLogger.trace(failureMsg(initBe, con, msg));
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                 );
@@ -282,7 +286,7 @@ protected:
             (Variant v) {
                 import std.format : format;
                 auto msg = format!"unknown message (%s)"(v);
-                logger.trace(failureMsg(initBe, con, msg));
+                sysLogger.trace(failureMsg(initBe, con, msg));
                 send(networkTid, TransitionFailed(initBe, msg));
             }
         );

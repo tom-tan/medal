@@ -11,6 +11,20 @@ import std.stdio : File;
 public import std.experimental.logger : LogLevel, Logger, NullLogger, sharedLog;
 
 ///
+enum LogType
+{
+    System,
+    App,
+}
+
+Logger[LogType] nullLoggers() @safe {
+    return [
+        LogType.System: new NullLogger,
+        LogType.App: new NullLogger,
+    ];
+}
+
+///
 @safe class JSONLogger: Logger
 {
     ///

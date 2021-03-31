@@ -6,7 +6,7 @@
 module medal.transition.shell;
 
 import medal.config : Config;
-import medal.logger : Logger, NullLogger;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers;
 import medal.transition.core;
 
 import std.algorithm : all;
@@ -28,7 +28,7 @@ immutable class ShellCommandTransition_: Transition
 
     ///
     protected override void fire(in BindingElement be, Tid networkTid,
-                                 Config con = Config.init, Logger logger = new NullLogger)
+                                 Config con = Config.init, Logger[LogType] loggers = nullLoggers)
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import medal.utils.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
@@ -43,14 +43,16 @@ immutable class ShellCommandTransition_: Transition
         import std.uuid : randomUUID;
         import std.variant : Variant;
 
+        auto sysLogger = loggers[LogType.System];
+
         JSONValue internalBE;
         internalBE["in"] = be.tokenElements.to!(string[string]);
         internalBE["workdir"] = con.workdir;
         internalBE["tmpdir"] = either(con.tmpdir, getcwd);
         internalBE["tag"] = con.tag;
 
-        logger.info(startMsg(be, con));
-        scope(failure) logger.critical(failureMsg(be, command, string[string].init, con, "Unknown error"));
+        sysLogger.info(startMsg(be, con));
+        scope(failure) sysLogger.critical(failureMsg(be, command, string[string].init, con, "Unknown error"));
 
         auto tmpdir = either(con.tmpdir, getcwd);
 
@@ -106,7 +108,7 @@ immutable class ShellCommandTransition_: Transition
             "stderr": stderrName,
         ];
 
-        logger.trace(constructMsg(be, cmd, newEnv, con));
+        sysLogger.trace(constructMsg(be, cmd, newEnv, con));
         auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr,
                                 newEnv, ProcessConfig.newEnv, con.workdir);
 
@@ -132,7 +134,7 @@ immutable class ShellCommandTransition_: Transition
                 auto needReturn = arcExpFun.byValue.canFind(SpecialPattern.Return);
                 if (needReturn || code == 0)
                 {
-                    logger.info(successMsg(be, ret, cmd, newEnv, con));
+                    sysLogger.info(successMsg(be, ret, cmd, newEnv, con));
                     // applog.info(successMsg(internalBE))
                     send(networkTid,
                          TransitionSucceeded(ret));
@@ -142,7 +144,7 @@ immutable class ShellCommandTransition_: Transition
                     import std.format : format;
 
                     auto msg = format!"command returned with non-zero (%s)"(code);
-                    logger.info(failureMsg(be, cmd, newEnv, con, msg));
+                    sysLogger.info(failureMsg(be, cmd, newEnv, con, msg));
                     // applog.info(failureMsg(internalBE))
                     send(networkTid,
                          TransitionFailed(be, msg));
@@ -154,14 +156,14 @@ immutable class ShellCommandTransition_: Transition
                 import std.math : abs;
 
                 auto msg = format!"interrupted (%s)"(sig.no);
-                logger.info(failureMsg(be, cmd, newEnv, con, msg));
+                sysLogger.info(failureMsg(be, cmd, newEnv, con, msg));
 
                 auto id = pid.processID;
-                logger.tracef("kill %s", id);
+                sysLogger.tracef("kill %s", id);
                 kill(pid);
-                logger.tracef("killed %s", id);
+                sysLogger.tracef("killed %s", id);
                 auto ret = receiveOnly!int;
-                logger.tracef("receive return code %s for %s", ret, id);
+                sysLogger.tracef("receive return code %s for %s", ret, id);
                 internalBE["tr"]["return"] = ret.abs;
                 internalBE["interrupted"] = ret < 0;
                 // TODO: interrupted or not
@@ -180,7 +182,7 @@ immutable class ShellCommandTransition_: Transition
                 internalBE["interrupted"] = false;
 
                 auto msg = format!"unknown message (%s)"(v);
-                logger.critical(failureMsg(be, cmd, newEnv, con, msg));
+                sysLogger.critical(failureMsg(be, cmd, newEnv, con, msg));
                 send(networkTid, TransitionFailed(be, msg));
             }
         );
@@ -208,7 +210,7 @@ immutable class ShellCommandTransition_: Transition
         auto sct = new ShellCommandTransition("", "true", Guard.init,
                                               ArcExpressionFunction.init);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -242,7 +244,7 @@ immutable class ShellCommandTransition_: Transition
         auto sct = new ShellCommandTransition("", "false", Guard.init,
                                               ArcExpressionFunction.init);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -275,7 +277,7 @@ immutable class ShellCommandTransition_: Transition
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "true", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -308,7 +310,7 @@ immutable class ShellCommandTransition_: Transition
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "echo bar", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -349,7 +351,7 @@ immutable class ShellCommandTransition_: Transition
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, new JSONLogger(buildPath(dir, "medal.jsonl")));
+                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
