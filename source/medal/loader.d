@@ -78,7 +78,12 @@ do
     auto command = cmdNode.get!string;
     enforceValidCommand(command, g, aef, cmdNode);
 
-    return new ShellCommandTransition(name, command, g, aef);
+    auto logEntries = loadUserLogEntries(node);
+
+    return new ShellCommandTransition(name, command, g, aef,
+                                      logEntries["pre"],
+                                      logEntries["success"],
+                                      logEntries["failure"]);
 }
 
 void enforceValidShellAEF(Node aef, Node inp) @safe
@@ -397,25 +402,6 @@ Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node) @trusted
     return tuple(guard.assumeUnique, mapping.assumeUnique);
 }
 
-immutable(Place[Place]) loadOutputPort(Node node) @trusted
-{
-    import medal.exception : loadEnforce;
-
-    import std.algorithm : map;
-    import std.array : assocArray;
-    import std.exception : assumeUnique;
-    import std.typecons : tuple;
-
-    auto port = node.sequence
-                    .map!((n) {
-                        auto from = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
-                        auto to = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n));
-                        return tuple(from, to);
-                    })
-                    .assocArray;
-    return port.assumeUnique;
-}
-
 ///
 unittest
 {
@@ -548,4 +534,190 @@ Place loadPlace(Node node) @safe
     loadEnforce(!pl.endsWith("&"), format!"Invalid place name `%s`: it should not end with `&`"(pl), node);
 
     return Place(pl);
+}
+
+auto loadUserLogEntries(Node node)
+{
+    import medal.logger : UserLogEntry;
+
+    auto loadEntry(Node n)
+    {
+        import medal.logger : LogLevel;
+        import std.conv : ConvException;
+
+        LogLevel lv;
+        auto lvStr = n.edig("level").get!string;
+        try
+        {
+            import std.conv : to;
+            lv = lvStr.to!LogLevel;
+        }
+        catch(ConvException e)
+        {
+            import medal.exception : LoadError;
+            import std.format : format;
+
+            throw new LoadError(format!"Invalid log level: %s"(lvStr), n.edig("level"));
+        }
+        return UserLogEntry(
+            lv, n.edig("command").get!string,
+        );
+    }
+
+    auto userLogEntries = [
+        "pre": UserLogEntry.init,
+        "success": UserLogEntry.init,
+        "failure": UserLogEntry.init,
+    ];
+    if ("log" !in node)
+    {
+        return userLogEntries;
+    }
+    auto userLogs = node["log"];
+    if (auto pre = "pre" in userLogs)
+    {
+        userLogEntries["pre"] = loadEntry(*pre);
+        // enforceValidPreLogEntry(userLogEntries["pre"], *pre);
+    }
+    if (auto success = "success" in userLogs)
+    {
+        userLogEntries["success"] = loadEntry(*success);
+        // enforceValidSuccessLogEntry(userLogEntries["success"], *success);
+    }
+    if (auto failure = "failure" in userLogs)
+    {
+        userLogEntries["failure"] = loadEntry(*failure);
+        // enforceValidFailureLogEntry(userLogEntries["failure"], *failure);
+    }
+    return userLogEntries;
+}
+
+auto inPlaceNames(Node node)
+{
+    import std.algorithm : map;
+    import std.array : array;
+
+    return node.dig("in", [])
+               .sequence
+               .map!(n => n.edig("place").get!string)
+               .array;
+}
+
+auto configParameters()
+{
+    return ["tag", "tmpdir", "workdir"];
+}
+
+auto portPlaceNames(Node node)
+{
+    import medal.exception : loadEnforce, LoadError;
+    import std.format : format;
+
+    auto typeNode = node.edig("type");
+    switch(typeNode.get!string)
+    {
+    case "shell":
+        return ["stdout", "stderr", "return"];
+    case "network":
+        return [];
+    case "invocation":
+        import dyaml : Loader;
+
+        import std.file : exists;
+        import std.path : buildPath, dirName;
+
+        auto subFileNode = node.edig("use");
+        auto subFile = buildPath(node.startMark.name.dirName, subFileNode.get!string);
+        loadEnforce(subFile.exists, format!"Subnetwork file not found: `%s`"(subFile),
+                    subFileNode);
+        auto subNode = Loader.fromFile(subFile).load;
+        return subNode.outPlaceNames;
+    default:
+        throw new LoadError(format!"Unsupported transition type: %s"(typeNode.get!string),
+                            typeNode);
+    }
+}
+
+auto outPlaceNames(Node node)
+{
+    import std.algorithm : map;
+    import std.array : array;
+
+    return node.dig("out", [])
+               .sequence
+               .map!(n => n.edig("place").get!string)
+               .array;
+}
+
+auto newFilePlaceNames(Node node)
+{
+    import std.algorithm : filter, map;
+    import std.array : array;
+
+    return node.dig("out", [])
+               .sequence
+               .filter!(n => n.edig("pattern") == "~(newfile)")
+               .map!(n => n.edig("place").get!string)
+               .array;
+}
+
+auto dig(T)(Node node, string key, T default_)
+{
+    return dig(node, [key], default_);
+}
+
+auto dig(T)(Node node, string[] keys, T default_)
+{
+    Node ret = node;
+    foreach(k_; keys)
+    {
+        auto k = k_ == "true" ? "on" : k_;
+        if (auto n = k in ret)
+        {
+            ret = *n;
+        }
+        else
+        {
+            static if (is(T : void[]))
+            {
+                return Node((Node[]).init);
+            }
+            else
+            {
+                return Node(default_);
+            }
+        }
+    }
+    return ret;
+}
+
+/// enforceDig
+auto edig(Node node, string key, string msg = "")
+{
+    return edig(node, [key], msg);
+}
+
+/// ditto
+auto edig(Node node, string[] keys, string msg = "")
+{
+    Node ret = node;
+    foreach(k_; keys)
+    {
+        auto k = k_ == "true" ? "on" : k_;
+        if (auto n = k in ret)
+        {
+            ret = *n;
+        }
+        else
+        {
+            import medal.exception : LoadError;
+
+            import std.format : format;
+            import std.range : empty;
+
+            msg = msg.empty ? format!"No such field: %s"(k_) : msg;
+            throw new LoadError(msg, ret);
+        }
+    }
+    return ret;
 }
