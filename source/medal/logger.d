@@ -5,8 +5,12 @@
  */
 module medal.logger;
 
+import medal.config : Config;
+
 import std.datetime.timezone : TimeZone;
+import std.json : JSONValue;
 import std.stdio : File;
+import std.typecons : Tuple;
 
 public import std.experimental.logger : LogLevel, Logger, NullLogger, sharedLog;
 
@@ -17,6 +21,7 @@ enum LogType
     App,
 }
 
+///
 Logger[LogType] nullLoggers() @safe {
     return [
         LogType.System: new NullLogger,
@@ -64,7 +69,7 @@ Logger[LogType] nullLoggers() @safe {
     {
         import std.conv : to;
         import std.exception : ifThrown;
-        import std.json : JSONException, JSONValue, parseJSON;
+        import std.json : JSONException, parseJSON;
 
         JSONValue log;
         log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
@@ -79,4 +84,51 @@ Logger[LogType] nullLoggers() @safe {
     protected File file_;
     protected string filename;
     protected immutable TimeZone tz;
+}
+
+///
+alias UserLogEntry = Tuple!(LogLevel, "level", string, "command");
+
+auto userLog(Logger logger, UserLogEntry entry, JSONValue json, Config con)
+{
+    import medal.transition.core : substitute;
+
+    import std.conv : to;
+    import std.format : format;
+    import std.json : JSONException, parseJSON;
+    import std.process : executeShell, ProcessConfig = Config;
+    import std.range : empty;
+
+    if (entry.command.empty) return;
+
+    auto cmd = entry.command.substitute(json);
+    auto newEnv = con.evaledEnv;
+    auto ls = executeShell(cmd, newEnv, ProcessConfig.newEnv, size_t.max, con.workdir);
+    auto code = ls.status;
+    auto output = ls.output;
+
+    if (code == 0)
+    {
+        string msg;
+        try
+        {
+            import std.conv : to;
+            msg = parseJSON(output).to!string;
+            logger.log(entry.level, msg);
+        }
+        catch(JSONException e)
+        {
+            logger.warning(JSONValue([
+                "message": format!"Output of user command `%s` is not a valid JSON object"(entry.command),
+                "log": output,
+            ]).to!string);
+        }
+    }
+    else
+    {
+        logger.warning(JSONValue([
+            "message": format!"User command `%s` failed"(entry.command),
+            "log": output,
+        ]).to!string);
+    }
 }
