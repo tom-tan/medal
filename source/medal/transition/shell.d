@@ -6,7 +6,7 @@
 module medal.transition.shell;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog, UserLogEntry;
 import medal.transition.core;
 
 import std.algorithm : all;
@@ -18,11 +18,13 @@ import std.range : empty;
 immutable class ShellCommandTransition_: Transition
 {
     ///
-    this(string name, string cmd, in Guard guard, in ArcExpressionFunction aef) @nogc nothrow pure @safe
+    this(string name, string cmd, in Guard guard, in ArcExpressionFunction aef,
+         UserLogEntry pre = UserLogEntry.init,
+         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) @nogc nothrow pure @safe
     in(!cmd.empty)
     do
     {
-        super(name, guard, aef);
+        super(name, guard, aef, pre, success, failure);
         command = cmd;
     }
 
@@ -44,19 +46,19 @@ immutable class ShellCommandTransition_: Transition
         import std.variant : Variant;
 
         auto sysLogger = loggers[LogType.System];
+        auto appLogger = loggers[LogType.App];
+
+        auto tmpdir = either(con.tmpdir, getcwd);
 
         JSONValue internalBE;
         internalBE["in"] = be.tokenElements.to!(string[string]);
         internalBE["workdir"] = con.workdir;
-        internalBE["tmpdir"] = either(con.tmpdir, getcwd);
+        internalBE["tmpdir"] = tmpdir;
         internalBE["tag"] = con.tag;
 
         sysLogger.info(startMsg(be, con));
+        appLogger.userLog(preLogEntry, internalBE, con);
         scope(failure) sysLogger.critical(failureMsg(be, command, string[string].init, con, "Unknown error"));
-
-        auto tmpdir = either(con.tmpdir, getcwd);
-
-        // TODO: applog.info(inMsg(internalBE));
 
         auto filePlaces = arcExpFun.byKey.filter!(p => arcExpFun[p] == SpecialPattern.File);
         if (!filePlaces.empty)
@@ -64,39 +66,18 @@ immutable class ShellCommandTransition_: Transition
             import std.algorithm : map;
             import std.array : assocArray;
             import std.typecons : tuple;
-            internalBE["out"] = filePlaces.map!(f => tuple(f.name, buildPath(tmpdir, format!"%s-%s"(f, randomUUID))))
-                                          .assocArray;
+            auto newfiles = filePlaces.map!(f => tuple(f.name, buildPath(tmpdir, format!"%s-%s"(f, randomUUID))))
+                                      .assocArray;
+            internalBE["out"] = newfiles;
+            internalBE["tr"] = [ "newfile": newfiles ];
+        }
+        else
+        {
+            internalBE["tr"] = JSONValue((string[string]).init);
         }
 
         auto cmd = commandWith(command, internalBE);
-        string[string] newEnv;
-        foreach(name, value; con.environment)
-        {
-            import std.process : executeShell;
-            import std.string : chomp;
-
-            auto ret = executeShell("echo "~value); // TODO: Not to use external program
-            if (ret.status == 0)
-            {
-                newEnv[name] = ret.output.chomp;
-            }
-            else
-            {
-                newEnv[name] = value;
-            }
-        }
-
-        newEnv["MEDAL_TMPDIR"] = con.tmpdir;
-        if ("PATH" !in newEnv)
-        {
-            import std.process : environment;
-            newEnv["PATH"] = environment["PATH"];
-        }
-        if ("HOME" !in newEnv)
-        {
-            import std.process : environment;
-            newEnv["HOME"] = environment["HOME"];
-        }
+        string[string] newEnv = con.evaledEnv;
 
         auto stdoutName = buildPath(tmpdir, format!"tr-%s-stdout-%s"(name, randomUUID));
         auto sout = File(stdoutName, "w");
@@ -130,12 +111,15 @@ immutable class ShellCommandTransition_: Transition
             (int code) {
                 internalBE["tr"]["return"] = code;
                 internalBE["interrupted"] = false;
-                auto ret = arcExpFun.apply(internalBE);
                 auto needReturn = arcExpFun.byValue.canFind(SpecialPattern.Return);
+
                 if (needReturn || code == 0)
                 {
+                    auto ret = arcExpFun.apply(internalBE);
+                    internalBE["out"] = ret.tokenElements.to!(string[string]);
+
                     sysLogger.info(successMsg(be, ret, cmd, newEnv, con));
-                    // applog.info(successMsg(internalBE))
+                    appLogger.userLog(successLogEntry, internalBE, con);
                     send(networkTid,
                          TransitionSucceeded(ret));
                 }
@@ -145,7 +129,7 @@ immutable class ShellCommandTransition_: Transition
 
                     auto msg = format!"command returned with non-zero (%s)"(code);
                     sysLogger.info(failureMsg(be, cmd, newEnv, con, msg));
-                    // applog.info(failureMsg(internalBE))
+                    appLogger.userLog(failureLogEntry, internalBE, con);
                     send(networkTid,
                          TransitionFailed(be, msg));
                 }
@@ -168,7 +152,7 @@ immutable class ShellCommandTransition_: Transition
                 internalBE["interrupted"] = ret < 0;
                 // TODO: interrupted or not
 
-                // applog.info(failureMsg(internalBE))
+                appLogger.userLog(failureLogEntry, internalBE, con);
                 send(networkTid, TransitionInterrupted(be));
             },
             (Variant v) {
@@ -183,6 +167,7 @@ immutable class ShellCommandTransition_: Transition
 
                 auto msg = format!"unknown message (%s)"(v);
                 sysLogger.critical(failureMsg(be, cmd, newEnv, con, msg));
+                appLogger.userLog(failureLogEntry, internalBE, con);
                 send(networkTid, TransitionFailed(be, msg));
             }
         );
@@ -207,10 +192,13 @@ immutable class ShellCommandTransition_: Transition
 
         Config con = { tmpdir: dir };
 
+        auto loggers = nullLoggers;
+        loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
         auto sct = new ShellCommandTransition("", "true", Guard.init,
                                               ArcExpressionFunction.init);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                             con, loggers);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -241,10 +229,13 @@ immutable class ShellCommandTransition_: Transition
 
         Config con = { tmpdir: dir };
 
+        auto loggers = nullLoggers;
+        loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
         auto sct = new ShellCommandTransition("", "false", Guard.init,
                                               ArcExpressionFunction.init);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                             con, loggers);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -272,12 +263,15 @@ immutable class ShellCommandTransition_: Transition
 
         Config con = { tmpdir: dir };
 
+        auto loggers = nullLoggers;
+        loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
         immutable aef = [
             "foo": SpecialPattern.Return.asOriginalType,
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "true", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                             con, loggers);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -305,12 +299,15 @@ immutable class ShellCommandTransition_: Transition
 
         Config con = { tmpdir: dir };
 
+        auto loggers = nullLoggers;
+        loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
         immutable aef = [
             "foo": SpecialPattern.Stdout.asOriginalType,
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "echo bar", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                             con, loggers);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
@@ -346,12 +343,15 @@ immutable class ShellCommandTransition_: Transition
 
         Config con = { tmpdir: dir };
 
+        auto loggers = nullLoggers;
+        loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
         immutable aef = [
             "foo": SpecialPattern.Return.asOriginalType,
         ].to!ArcExpressionFunction_;
         auto sct = new ShellCommandTransition("", "sleep infinity", Guard.init, aef);
         auto tid = spawnFire(sct, new BindingElement, thisTid,
-                             con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                             con, loggers);
         scope(exit)
         {
             assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
