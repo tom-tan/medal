@@ -6,7 +6,7 @@
 module medal.transition.core;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, UserLogEntry;
 
 import std.concurrency : Tid;
 import std.json : JSONValue;
@@ -369,16 +369,24 @@ immutable abstract class Transition_
     }
 
     ///
-    this(in string n, in Guard g, in ArcExpressionFunction aef) @nogc nothrow pure @safe
+    this(in string n, in Guard g, in ArcExpressionFunction aef,
+         UserLogEntry pre = UserLogEntry.init, UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) @nogc nothrow pure @safe
     {
         name = n;
         guard = g;
         arcExpFun = aef;
+        preLogEntry = pre;
+        successLogEntry = success;
+        failureLogEntry = failure;
     }
 
     string name;
     Guard guard;
     ArcExpressionFunction arcExpFun;
+
+    UserLogEntry preLogEntry;
+    UserLogEntry successLogEntry;
+    UserLogEntry failureLogEntry;
 }
 
 /// ditto
@@ -388,6 +396,9 @@ alias Transition = immutable Transition_;
 Tid spawnFire(in Transition tr, in BindingElement be, Tid tid,
               Config con = Config.init,
               Logger[LogType] loggers = nullLoggers)
+in(tr)
+in(LogType.System in loggers)
+in(LogType.App in loggers)
 {
     import core.exception : AssertError;
     import std.concurrency : send, spawnLinked;
