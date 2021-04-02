@@ -28,6 +28,39 @@ module medal.config;
     ///
     bool reuseParentTmpdir;
 
+    auto evaledEnv() const
+    {
+        string[string] newEnv;
+        foreach(name, value; environment)
+        {
+            import std.process : executeShell;
+            import std.string : chomp;
+
+            auto ret = executeShell("echo "~value); // TODO: Not to use external program
+            if (ret.status == 0)
+            {
+                newEnv[name] = ret.output.chomp;
+            }
+            else
+            {
+                newEnv[name] = value;
+            }
+        }
+
+        newEnv["MEDAL_TMPDIR"] = tmpdir;
+        if ("PATH" !in newEnv)
+        {
+            import std.process : env = environment;
+            newEnv["PATH"] = env["PATH"];
+        }
+        if ("HOME" !in newEnv)
+        {
+            import std.process : env = environment;
+            newEnv["HOME"] = env["HOME"];
+        }
+        return newEnv;
+    }
+
     ///
     Config inherits(Config parent, bool inheritReuse = false) inout pure @trusted
     {
