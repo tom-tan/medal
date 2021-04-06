@@ -17,10 +17,8 @@ Transition loadTransition(Node node) @safe
 {
     import medal.exception : loadEnforce, LoadError;
 
-    auto type = (*loadEnforce("type" in node,
-                              "`type` field is needed for transitions",
-                              node)).get!string;
-    switch(type)
+    auto typeNode = node.edig("type");
+    switch(typeNode.get!string)
     {
     case "shell":
         return loadShellCommandTransition(node);
@@ -30,7 +28,7 @@ Transition loadTransition(Node node) @safe
         return loadInvocationTransition(node);
     default:
         import std.format : format;
-        throw new LoadError(format!"Unknown type: `%s`"(type), node);
+        throw new LoadError(format!"Unknown type: `%s`"(typeNode.get!string), typeNode);
     }
 }
 
@@ -63,18 +61,15 @@ do
     import medal.transition.shell : ShellCommandTransition;
     import std.range : empty;
 
-    auto name = "name" in node ? node["name"].get!string : "";
+    auto name = node.dig("name", "").get!string;
 
-    auto g = "in" in node ? loadGuard(node["in"]) : Guard.init;
+    auto g = loadGuard(node.dig("in", []));
 
-    auto aef = "out" in node ? loadArcExpressionFunction(node["out"])
-                             : ArcExpressionFunction.init;
-    enforceValidShellAEF("out" in node ? node["out"] : Node((Node[]).init),
-                         "in" in node ? node["in"] : Node((Node[]).init));
+    auto aef = loadArcExpressionFunction(node.dig("out", []));
 
-    auto cmdNode = *loadEnforce("command" in node,
-                                "`command` field is necessary for shell transitions",
-                                node);
+    enforceValidShellAEF(node.dig("out", []), node.dig("in", []));
+
+    auto cmdNode = node.edig("command");
     auto command = cmdNode.get!string;
     enforceValidCommand(command, g, aef, cmdNode);
 
@@ -201,21 +196,19 @@ do
     loadEnforce("configurations" !in node,
                 "Invalid field `configurations`; did you mean `configuration`?",
                 node);
-    auto con = "configuration" in node ? loadConfig(node) : Config.init;
+    auto con = "configuration" in node ? loadConfig(node) : Config.init; // TODO
 
     loadEnforce(con.tmpdir.empty, "`tmpdir` field is not valid in network transitions",
                 node["configuration"]["tmpdir"]);
     loadEnforce(con.workdir.empty, "`workdir` field is not valid in network transitions",
                 node["configuration"]["workdir"]);
 
-    auto name = "name" in node ? node["name"].get!string : "";
+    auto name = node.dig("name", "").get!string;
 
     loadEnforce("transition" !in node,
                 "Invalid field `transition`; did you mean `transitions`?",
                 node);
-    auto trsNode = *loadEnforce("transitions" in node,
-                                "`transitions` field is needed in network transitions",
-                                node);
+    auto trsNode = node.edig("transitions");
     auto trs = trsNode.sequence
                       .map!(n => loadTransition(n))
                       .array;
@@ -228,23 +221,23 @@ do
     if (auto on_ = true in node)
     {
         auto on = *on_;
-        exitTrs = "exit" in on ? on["exit"].sequence
-                                           .map!(n => loadTransition(n))
-                                           .array
-                               : [];
-        successTrs = "success" in on ? on["success"].sequence
-                                                    .map!(n => loadTransition(n))
-                                                    .array
-                                     : [];
-        failureTrs = "failure" in on ? on["failure"].sequence
-                                                    .map!(n => loadTransition(n))
-                                                    .array
-                                     : [];
+        exitTrs = on.dig("exit", [])
+                    .sequence
+                    .map!(n => loadTransition(n))
+                    .array;
+        successTrs = on.dig("success", [])
+                       .sequence
+                       .map!(n => loadTransition(n))
+                       .array;
+        failureTrs = on.dig("failure", [])
+                       .sequence
+                       .map!(n => loadTransition(n))
+                       .array;
     }
 
-    auto g1 = "in" in node ? loadGuard(node["in"]) : Guard.init;
+    auto g1 = loadGuard(node.dig("in", []));
 
-    auto g2 = "out" in node ? loadGuard(node["out"]) : Guard.init;
+    auto g2 = loadGuard(node.dig("out", []));
     return new NetworkTransition(name, g1, g2, trs,
                                  exitTrs, successTrs, failureTrs, con);
 }
@@ -269,25 +262,23 @@ do
                 node);
     auto con = "configuration" in node ? loadConfig(node) : Config.init;
 
-    auto name = "name" in node ? node["name"].get!string : "";
+    auto name = node.dig("name", "").get!string;
 
-    auto subFileNode = *loadEnforce("use" in node,
-                                    "`use` field is needed in invocation transitions",
-                                    node);
+    auto subFileNode = node.edig("use");
     auto subFile = buildPath(node.startMark.name.dirName, subFileNode.get!string);
     loadEnforce(subFile.exists, format!"Subnetwork file not found: `%s`"(subFile),
                 subFileNode);
     auto subNode = Loader.fromFile(subFile).load;
     auto tr = loadTransition(subNode);
 
-    auto inode = loadEnforce("in" in node, "`in` field is needed in invocation transitions", node);
-    auto itpl = loadPortGuard(*inode);
-    enforceInPortIsValid(itpl[1], tr.guard, *inode);
+    auto inode = node.edig("in");
+    auto itpl = loadPortGuard(inode);
+    enforceInPortIsValid(itpl[1], tr.guard, inode);
 
-    auto onode = loadEnforce("out" in node, "`out` field is needed in invocation transitions", node);
-    auto aef = loadArcExpressionFunction(*onode);
+    auto onode = node.edig("out");
+    auto aef = loadArcExpressionFunction(onode);
 
-    enforceValidInvocationAEF(*onode, *inode, tr);
+    enforceValidInvocationAEF(onode, inode, tr);
 
     return new InvocationTransition(name, itpl[0], aef, itpl[1], tr, con);
 }
@@ -374,8 +365,8 @@ Guard loadGuard(Node node) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
-                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string;
+                        auto pl = loadPlace(n.edig("place"));
+                        auto pat = n.edig("pattern").get!string;
                         return tuple(pl, InputPattern(pat));
                     })
                     .assocArray;
@@ -393,9 +384,9 @@ Tuple!(Guard, immutable Place[Place]) loadPortGuard(Node node) @trusted
     Place[Place] mapping;
     foreach(Node n; node)
     {
-        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
-        auto pat = InputPattern((*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string);
-        auto p = loadPlace(*loadEnforce("port-to" in n, "`port-to` field is needed", n));
+        auto pl = loadPlace(n.edig("place"));
+        auto pat = InputPattern(n.edig("pattern").get!string);
+        auto p = loadPlace(n.edig("port-to"));
         guard[pl] = pat;
         mapping[pl] = p;
     }
@@ -428,8 +419,8 @@ ArcExpressionFunction loadArcExpressionFunction(Node node) @safe
 
     auto pats = node.sequence
                     .map!((n) {
-                        auto pl = loadPlace(*loadEnforce("place" in n, "`place` field is needed", n));
-                        auto pat = (*loadEnforce("pattern" in n, "`pattern` field is needed", n)).get!string;
+                        auto pl = loadPlace(n.edig("place"));
+                        auto pat = n.edig("pattern").get!string;
                         return tuple(pl, pat);
                     })
                     .assocArray;
@@ -459,31 +450,18 @@ in("configuration" in node)
 {
     import medal.exception : loadEnforce;
 
-    import std.algorithm : canFind;
+    import std.algorithm : canFind, startsWith;
+    import std.range : empty;
 
     auto n = node["configuration"];
-    string tag;
-    if (auto t = "tag" in n)
-    {
-        tag = t.get!string;
-    }
+    auto tag = n.dig("tag", "").get!string;
 
-    string workdir;
-    if (auto wdir = "workdir" in n)
-    {
-        workdir = wdir.get!string;
-        loadEnforce(!workdir.canFind(".."), "`..` is not allowed in `workdir`", *wdir);
-    }
+    auto workdir = n.dig("workdir", "").get!string;
+    loadEnforce(!workdir.canFind(".."), "`..` is not allowed in `workdir`", n);
 
-    string tmpdir;
-    if (auto tdir = "tmpdir" in n)
-    {
-        import std.algorithm : startsWith;
-
-        tmpdir = tdir.get!string;
-        loadEnforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`", *tdir);
-        loadEnforce(tmpdir.startsWith("~(tmpdir)"), "`tmpdir` should be in the parent `tmpdir`", *tdir);
-    }
+    auto tmpdir = n.dig("tmpdir", "").get!string;
+    loadEnforce(!tmpdir.canFind(".."), "`..` is not allowed in `tmpdir`", n);
+    loadEnforce(tmpdir.empty || tmpdir.startsWith("~(tmpdir)"), "`tmpdir` should be in the parent `tmpdir`", n);
 
     string[string] env;
     if (auto e = "env" in n)
@@ -493,8 +471,8 @@ in("configuration" in node)
         import std.typecons : tuple;
 
         env = e.sequence.map!((Node nn) {
-            auto name = (*loadEnforce("name" in nn, "`name` field is needed", nn)).get!string;
-            auto value = (*loadEnforce("value" in nn, "`value` field is needed", nn)).get!string;
+            auto name = nn.edig("name").get!string;
+            auto value = nn.edig("value").get!string;
             return tuple(name, value);
         }).assocArray;
     }

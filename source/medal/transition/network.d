@@ -6,7 +6,7 @@
 module medal.transition.network;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog;
 import medal.transition.core;
 
 import std.concurrency : Tid;
@@ -48,31 +48,48 @@ protected:
 
         import std.algorithm : either;
         import std.concurrency : send;
+        import std.conv : to;
 
         auto sysLogger = loggers[LogType.System];
+        auto appLogger = loggers[LogType.App];
 
         // NetworkTransition is only called by main() or InvocationTransition
         // Therefore it should use the parent `tmpdir` as is.
         auto netConfig = config.inherits(con, true);
 
+        JSONValue internalBE;
+        internalBE["in"] = initBe.tokenElements.to!(string[string]);
+        internalBE["workdir"] = netConfig.workdir;
+        internalBE["tmpdir"] = netConfig.tmpdir;
+        internalBE["tag"] = netConfig.tag;
+
         sysLogger.info(startMsg(initBe, netConfig));
+        appLogger.userLog(preLogEntry, internalBE, netConfig);
         scope(failure) sysLogger.critical(failureMsg(initBe, netConfig, "Unknown error"));
 
         auto engine = Engine(transitions, stopGuard,
                              exitTransitions, successTransitions, failureTransitions);
         auto result = engine.run(initBe, netConfig, loggers);
+        // internalBE["net"]["places"]
         final switch (result.status) with (EngineResult)
         {
         case succeeded:
+            internalBE["out"] = result.bindingElement.tokenElements.to!(string[string]);
+            internalBE["interrupted"] = false;
             sysLogger.info(successMsg(initBe, result.bindingElement, netConfig));
+            appLogger.userLog(successLogEntry, internalBE, netConfig);
             send(networkTid, TransitionSucceeded(result.bindingElement));
             break;
         case failed:
+            internalBE["interrupted"] = false;
             sysLogger.info(failureMsg(initBe, netConfig, "internal transition failed"));
+            appLogger.userLog(failureLogEntry, internalBE, netConfig);
             send(networkTid, TransitionFailed(initBe));
             break;
         case interrupted:
+            internalBE["interrupted"] = true;
             sysLogger.info(failureMsg(initBe, netConfig, "transition interrupted"));
+            appLogger.userLog(failureLogEntry, internalBE, netConfig);
             send(networkTid, TransitionInterrupted(initBe));
             break;
         }
@@ -161,6 +178,9 @@ unittest
         reuseParentTmpdir: true,
     };
 
+    auto loggers = nullLoggers;
+    loggers[LogType.System] = new JSONLogger(buildPath(dir, "medal.jsonl"));
+
     immutable aef = [
         "bar": SpecialPattern.Return.asOriginalType,
     ].to!ArcExpressionFunction_;
@@ -178,7 +198,7 @@ unittest
     auto net = new NetworkTransition("", g, portGuard, [sct]);
 
     auto tid = spawnFire(net, new BindingElement(["foo": "yahoo"].to!(Token[Place])), thisTid,
-                         con, [LogType.System: new JSONLogger(buildPath(dir, "medal.jsonl"))]);
+                         con, loggers);
     scope(exit)
     {
         assert(tid.to!string == receiveOnly!LinkTerminated.tid.to!string);
