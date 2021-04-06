@@ -1,0 +1,27 @@
+name: echo
+type: shell
+in:
+  - place: message
+    pattern: _
+out:
+  - place: return
+    pattern: ~(tr.return)
+command: echo ~(in.message)
+log:
+  pre: # user log before executing `echo` transition
+    level: info
+    # input places can be referred using `~(in.*)`
+    command: |
+      echo '{ "message": "~(in.message)" }'
+  success: # user log when succeeded
+    level: info
+    # output places can be referred using `~(out.*)`
+    # shell transitions provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
+    command: |
+      echo '{ "result": "success", "in": "~(in.message)", "out": "~(out.return)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'
+  failure: # user log when failed
+    level: info
+    # output places cannot be accessed via ~(out.*)
+    # shell transitions still provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
+    command: |
+      echo '{ "result": "failure", "in": "~(in.message)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'
