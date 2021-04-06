@@ -16,7 +16,7 @@ transitions:
         pattern: _
     out:
       - place: pong
-        pattern: STDOUT
+        pattern: ~(tr.stdout)
     command: echo ~(in.ping) | tr i o
   - name: pong
     type: shell
@@ -25,5 +25,5 @@ transitions:
         pattern: _
     out:
       - place: pang
-        pattern: STDOUT
+        pattern: ~(tr.stdout)
     command: echo "smash $(cat ~(in.pong))"
