@@ -238,8 +238,14 @@ do
     auto g1 = loadGuard(node.dig("in", []));
 
     auto g2 = loadGuard(node.dig("out", []));
+
+    auto logEntries = loadUserLogEntries(node);
+
     return new NetworkTransition(name, g1, g2, trs,
-                                 exitTrs, successTrs, failureTrs, con);
+                                 exitTrs, successTrs, failureTrs, con,
+                                 logEntries["pre"],
+                                 logEntries["success"],
+                                 logEntries["failure"]);
 }
 
 ///
@@ -280,7 +286,12 @@ do
 
     enforceValidInvocationAEF(onode, inode, tr);
 
-    return new InvocationTransition(name, itpl[0], aef, itpl[1], tr, con);
+    auto logEntries = loadUserLogEntries(node);
+
+    return new InvocationTransition(name, itpl[0], aef, itpl[1], tr, con,
+                                    logEntries["pre"],
+                                    logEntries["success"],
+                                    logEntries["failure"]);
 }
 
 void enforceInPortIsValid(in Place[Place] ports, in Guard guard, Node node) @safe

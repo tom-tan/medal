@@ -6,7 +6,7 @@
 module medal.transition.network;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog, UserLogEntry;
 import medal.transition.core;
 
 import std.concurrency : Tid;
@@ -19,7 +19,9 @@ immutable class NetworkTransition_: Transition
     ///
     this(in string name, in Guard g1, in Guard g2, in Transition[] trs,
          in Transition[] exitTrs = [], in Transition[] successTrs = [], in Transition[] failureTrs = [],
-         immutable Config con = Config.init) nothrow pure @safe
+         immutable Config con = Config.init,
+         UserLogEntry pre = UserLogEntry.init,
+         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) nothrow pure @safe
     in(!trs.empty)
     do
     {
@@ -29,7 +31,8 @@ immutable class NetworkTransition_: Transition
         import std.typecons : tuple;
 
         auto aef = g2.byKey.map!(p => tuple(p, OutputPattern.init)).assocArray;
-        super(name, g1, () @trusted { return aef.assumeUnique; }());
+        super(name, g1, () @trusted { return aef.assumeUnique; }(),
+              pre, success, failure);
         transitions = trs;
         exitTransitions = exitTrs;
         successTransitions = successTrs;
@@ -221,9 +224,11 @@ immutable class InvocationTransition_: Transition
     ///
     this(in string name, in Guard g, in ArcExpressionFunction aef,
          immutable Place[Place] inPorts,
-         Transition tr, immutable Config con = Config.init) nothrow pure @trusted
+         Transition tr, immutable Config con = Config.init,
+         UserLogEntry pre = UserLogEntry.init,
+         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) nothrow pure @trusted
     {
-        super(name, g, aef);
+        super(name, g, aef, pre, success, failure);
         inputPorts = inPorts;
         subTransition = tr;
         config = con;
@@ -236,17 +241,26 @@ protected:
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
         import std.concurrency : receive, send, thisTid;
+        import std.conv : to;
         import std.variant : Variant;
 
         auto sysLogger = loggers[LogType.System];
-
-        sysLogger.trace(startMsg(initBe, con));
+        auto appLogger = loggers[LogType.App];
 
         auto c = config.inherits(con);
+        sysLogger.trace(startMsg(initBe, c));
         scope(failure) sysLogger.critical(failureMsg(initBe, c, "Unknown error"));
+
+        JSONValue internalBE;
+        internalBE["in"] = initBe.tokenElements.to!(string[string]);
+        internalBE["workdir"] = c.workdir;
+        internalBE["tmpdir"] = c.tmpdir;
+        internalBE["tag"] = c.tag;
 
         auto portedBe = port(initBe, inputPorts);
         sysLogger.info(inputPortMsg(initBe, portedBe, con, c));
+        appLogger.userLog(preLogEntry, internalBE, c);
+
         auto tid = spawnFire(subTransition, portedBe, thisTid, c, loggers);
 
         receive(
@@ -255,18 +269,26 @@ protected:
                 import std.array : assocArray, byPair;
                 import std.typecons : tuple;
 
+                internalBE["tr"] = ts.tokenElements.tokenElements.to!(string[string]);
+                internalBE["interrupted"] = false;
+
                 auto aa = ts.tokenElements
                             .tokenElements
                             .byPair
                             .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
                             .assocArray;
                 auto resultedBe = arcExpFun.apply(JSONValue(aa));
+                internalBE["out"] = resultedBe.tokenElements.to!(string[string]);
                 sysLogger.info(successMsg(initBe, resultedBe, con));
+                appLogger.userLog(successLogEntry, internalBE, c);
                 send(networkTid, TransitionSucceeded(resultedBe));
             },
             (TransitionFailed tf) {
+                internalBE["interrupted"] = false;
+
                 auto msg = "internal transition failed";
                 sysLogger.info(failureMsg(initBe, con, msg));
+                appLogger.userLog(failureLogEntry, internalBE, c);
                 send(networkTid, TransitionFailed(initBe, msg));
             },
             (SignalSent ss) {
@@ -277,36 +299,49 @@ protected:
                         import std.array : assocArray, byPair;
                         import std.typecons : tuple;
 
+                        internalBE["tr"] = ts.tokenElements.tokenElements.to!(string[string]);
+                        internalBE["interrupted"] = false;
+
                         auto aa = ts.tokenElements
                                     .tokenElements
                                     .byPair
                                     .map!(kv => tuple("tr."~kv.key.name, kv.value.value))
                                     .assocArray;
                         auto resultedBe = arcExpFun.apply(JSONValue(aa));
+                        internalBE["out"] = resultedBe.tokenElements.to!(string[string]);
                         sysLogger.info(successMsg(initBe, resultedBe, con));
+                        appLogger.userLog(successLogEntry, internalBE, c);
                         send(networkTid, TransitionSucceeded(resultedBe));
                     },
                     (TransitionFailed tf) {
+                        internalBE["interrupted"] = false;
                         auto msg = "internal transition failed";
                         sysLogger.info(failureMsg(initBe, con, msg));
+                        appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                     (TransitionInterrupted ti) {
+                        internalBE["interrupted"] = true;
                         sysLogger.info(failureMsg(initBe, con, "transition interrupted"));
+                        appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionInterrupted(initBe));
                     },
                     (Variant v) {
                         import std.format : format;
+                        internalBE["interrupted"] = false;
                         auto msg = format!"unknown message (%s)"(v);
                         sysLogger.trace(failureMsg(initBe, con, msg));
+                        appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                 );
             },
             (Variant v) {
                 import std.format : format;
+                internalBE["interrupted"] = false;
                 auto msg = format!"unknown message (%s)"(v);
                 sysLogger.trace(failureMsg(initBe, con, msg));
+                appLogger.userLog(failureLogEntry, internalBE, c);
                 send(networkTid, TransitionFailed(initBe, msg));
             }
         );
