@@ -59,6 +59,8 @@ do
 {
     import medal.exception : loadEnforce;
     import medal.transition.shell : ShellCommandTransition;
+    import std.algorithm : map;
+    import std.array : array;
     import std.range : empty;
 
     auto name = node.dig("name", "").get!string;
@@ -71,7 +73,10 @@ do
 
     auto cmdNode = node.edig("command");
     auto command = cmdNode.get!string;
-    enforceValidCommand(command, g, aef, cmdNode);
+    auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
+                          node.newFilePlaceNames.map!"`out.`~a".array ~
+                          configParameters;
+    enforceValidCommand(command, acceptedParams, cmdNode);
 
     auto logEntries = loadUserLogEntries(node);
 
@@ -123,43 +128,28 @@ void enforceValidShellAEF(Node aef, Node inp) @safe
     }
 }
 
-void enforceValidCommand(string cmd, Guard g, ArcExpressionFunction aef, Node node) @safe
+void enforceValidCommand(string cmd, string[] acceptedParams, Node node) @safe
 {
     import medal.exception : loadEnforce;
 
-    import std.algorithm : canFind, map;
-    import std.array : array;
+    import std.algorithm : canFind;
     import std.format : format;
     import std.range : empty;
     import std.regex : ctRegex, matchAll, matchFirst;
-
-    auto gPlaces = g.byKey.map!(k => format!"in.%s"(k.name)).array;
-    auto aefPlaces = aef.byKey.array;
 
     loadEnforce(!cmd.empty, "`command` field should not be an empty string", node);
 
     foreach(m; cmd.matchAll(ctRegex!(r"~(~~)*\(([^)]+)\)", "m")))
     {
         auto pl = m[2];
-        if (auto p = gPlaces.canFind(pl))
-        {
-            continue;
-        }
-        else if (aefPlaces.map!(p => format!"out.%s"(p.name)).canFind(pl))
-        {
-            auto placeName = pl["out.".length..$];
-            loadEnforce(aef[Place(placeName)] == SpecialPattern.File,
-                        format!"Refering the output place `%s` that is not `%s`"(placeName, SpecialPattern.File),
-                        node);
-        }
-        else if (["tag", "tmpdir", "workdir"].canFind(pl))
+        if (auto p = acceptedParams.canFind(pl))
         {
             continue;
         }
         else
         {
             import medal.exception : LoadError;
-            throw new LoadError(format!"Invalid place `%s`"(pl), node);
+            throw new LoadError(format!"Invalid reference `%s`"(pl), node);
         }
     }
     if (cmd.matchFirst(ctRegex!(r"\$\(.+\)", "m")) ||
@@ -528,6 +518,8 @@ Place loadPlace(Node node) @safe
 auto loadUserLogEntries(Node node)
 {
     import medal.logger : UserLogEntry;
+    import std.algorithm : map;
+    import std.array : array;
 
     auto loadEntry(Node n)
     {
@@ -566,17 +558,26 @@ auto loadUserLogEntries(Node node)
     if (auto pre = "pre" in userLogs)
     {
         userLogEntries["pre"] = loadEntry(*pre);
-        // enforceValidPreLogEntry(userLogEntries["pre"], *pre);
+        auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
+                              configParameters;
+        enforceValidCommand(userLogEntries["pre"].command, acceptedParams, (*pre).edig("command"));
     }
     if (auto success = "success" in userLogs)
     {
         userLogEntries["success"] = loadEntry(*success);
-        // enforceValidSuccessLogEntry(userLogEntries["success"], *success);
+        auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
+                              node.outPlaceNames.map!"`out.`~a".array ~
+                              node.portPlaceNames.map!"`tr.`~a".array ~
+                              configParameters;
+        enforceValidCommand(userLogEntries["success"].command, acceptedParams, (*success).edig("command"));
     }
     if (auto failure = "failure" in userLogs)
     {
         userLogEntries["failure"] = loadEntry(*failure);
-        // enforceValidFailureLogEntry(userLogEntries["failure"], *failure);
+        auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
+                              node.portPlaceNames.map!"`tr.`~a".array ~
+                              configParameters;
+        enforceValidCommand(userLogEntries["failure"].command, acceptedParams, (*failure).edig("command"));
     }
     return userLogEntries;
 }
@@ -608,7 +609,7 @@ auto portPlaceNames(Node node)
     case "shell":
         return ["stdout", "stderr", "return"];
     case "network":
-        return [];
+        return (string[]).init;
     case "invocation":
         import dyaml : Loader;
 
