@@ -209,9 +209,9 @@ struct Engine
         killTransitions(trTids, sysLogger);
         auto success = waitTransitions(trTids, sysLogger, config);
 
-        auto status = interrupted ? EngineResult.interrupted :
-                      !retBe.empty && success ? EngineResult.succeeded :
-                                                EngineResult.failed;
+        auto status = interrupted                      ? EngineResult.interrupted :
+                      retBe && !retBe.empty && success ? EngineResult.succeeded :
+                                                         EngineResult.failed;
 
         auto mode = status == EngineResult.succeeded ? ExitMode.success :
                                                        ExitMode.failure;
