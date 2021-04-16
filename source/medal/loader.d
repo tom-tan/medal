@@ -517,38 +517,13 @@ Place loadPlace(Node node) @safe
 
 auto loadUserLogEntries(Node node)
 {
-    import medal.logger : UserLogEntry;
     import std.algorithm : map;
     import std.array : array;
 
-    auto loadEntry(Node n)
-    {
-        import medal.logger : LogLevel;
-        import std.conv : ConvException;
-
-        LogLevel lv;
-        auto lvStr = n.edig("level").get!string;
-        try
-        {
-            import std.conv : to;
-            lv = lvStr.to!LogLevel;
-        }
-        catch(ConvException e)
-        {
-            import medal.exception : LoadError;
-            import std.format : format;
-
-            throw new LoadError(format!"Invalid log level: %s"(lvStr), n.edig("level"));
-        }
-        return UserLogEntry(
-            lv, n.edig("command").get!string,
-        );
-    }
-
     auto userLogEntries = [
-        "pre": UserLogEntry.init,
-        "success": UserLogEntry.init,
-        "failure": UserLogEntry.init,
+        "pre": "",
+        "success": "",
+        "failure": "",
     ];
     if ("log" !in node)
     {
@@ -557,27 +532,27 @@ auto loadUserLogEntries(Node node)
     auto userLogs = node["log"];
     if (auto pre = "pre" in userLogs)
     {
-        userLogEntries["pre"] = loadEntry(*pre);
+        userLogEntries["pre"] = (*pre).get!string;
         auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
                               configParameters;
-        enforceValidCommand(userLogEntries["pre"].command, acceptedParams, (*pre).edig("command"));
+        enforceValidCommand(userLogEntries["pre"], acceptedParams, *pre);
     }
     if (auto success = "success" in userLogs)
     {
-        userLogEntries["success"] = loadEntry(*success);
+        userLogEntries["success"] = (*success).get!string;
         auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
                               node.outPlaceNames.map!"`out.`~a".array ~
                               node.portPlaceNames.map!"`tr.`~a".array ~
                               configParameters;
-        enforceValidCommand(userLogEntries["success"].command, acceptedParams, (*success).edig("command"));
+        enforceValidCommand(userLogEntries["success"], acceptedParams, *success);
     }
     if (auto failure = "failure" in userLogs)
     {
-        userLogEntries["failure"] = loadEntry(*failure);
+        userLogEntries["failure"] = (*failure).get!string;
         auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
                               node.portPlaceNames.map!"`tr.`~a".array ~
                               configParameters;
-        enforceValidCommand(userLogEntries["failure"].command, acceptedParams, (*failure).edig("command"));
+        enforceValidCommand(userLogEntries["failure"], acceptedParams, *failure);
     }
     return userLogEntries;
 }

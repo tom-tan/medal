@@ -6,7 +6,7 @@
 module medal.transition.shell;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog, UserLogEntry;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog;
 import medal.transition.core;
 
 import std.algorithm : all;
@@ -19,8 +19,7 @@ immutable class ShellCommandTransition_: Transition
 {
     ///
     this(string name, string cmd, in Guard guard, in ArcExpressionFunction aef,
-         UserLogEntry pre = UserLogEntry.init,
-         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) @nogc nothrow pure @safe
+         string pre = "", string success = "", string failure = "") @nogc nothrow pure @safe
     in(!cmd.empty)
     do
     {

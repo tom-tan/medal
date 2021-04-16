@@ -6,7 +6,7 @@
 module medal.transition.core;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers, UserLogEntry;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers;
 
 import std.concurrency : Tid;
 import std.json : JSONValue;
@@ -370,7 +370,7 @@ immutable abstract class Transition_
 
     ///
     this(in string n, in Guard g, in ArcExpressionFunction aef,
-         UserLogEntry pre = UserLogEntry.init, UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) @nogc nothrow pure @safe
+         string pre = "", string success = "", string failure = "") @nogc nothrow pure @safe
     {
         name = n;
         guard = g;
@@ -384,9 +384,9 @@ immutable abstract class Transition_
     Guard guard;
     ArcExpressionFunction arcExpFun;
 
-    UserLogEntry preLogEntry;
-    UserLogEntry successLogEntry;
-    UserLogEntry failureLogEntry;
+    string preLogEntry;
+    string successLogEntry;
+    string failureLogEntry;
 }
 
 /// ditto

@@ -65,7 +65,7 @@ Logger[LogType] nullLoggers() @safe {
         return this.file_;
     }
 
-    override void writeLogMsg(ref LogEntry payload)
+    override void writeLogMsg(ref LogEntry payload) @trusted
     {
         import std.conv : to;
         import std.exception : ifThrown;
@@ -73,10 +73,24 @@ Logger[LogType] nullLoggers() @safe {
 
         JSONValue log;
         log["timestamp"] = payload.timestamp.toOtherTZ(tz).toISOExtString;
-        log["thread-id"] = () @trusted { return payload.threadId.to!string[4..$-1]; }();
+        log["thread-id"] = payload.threadId.to!string[4..$-1];
         log["log-level"] = payload.logLevel.to!string;
         auto json = parseJSON(payload.msg).ifThrown!JSONException(JSONValue(["message": payload.msg]));
-        log["payload"] = json;
+        if (".userlog" in json)
+        {
+            foreach(string k, v; json)
+            {
+                if (k == "log-level" || k == ".userlog")
+                {
+                    continue;
+                }
+                log[k] = v;
+            }
+        }
+        else
+        {
+            log["payload"] = json;
+        }
         file.writeln(log);
         file.flush;
     }
@@ -87,9 +101,7 @@ Logger[LogType] nullLoggers() @safe {
 }
 
 ///
-alias UserLogEntry = Tuple!(LogLevel, "level", string, "command");
-
-auto userLog(Logger logger, UserLogEntry entry, JSONValue json, Config con)
+void userLog(Logger logger, string entry, JSONValue vars, Config con)
 {
     import medal.transition.core : substitute;
 
@@ -99,9 +111,26 @@ auto userLog(Logger logger, UserLogEntry entry, JSONValue json, Config con)
     import std.process : executeShell, ProcessConfig = Config;
     import std.range : empty;
 
-    if (entry.command.empty) return;
+    void warningLog(Log)(string message, Log log)
+    {
+        JSONValue msg = [
+            "message": JSONValue(message),
+            "command": JSONValue(entry),
+        ];
+        static if (is(Log: string))
+        {
+            msg["log"] = log;
+        }
+        else static if (is(Log: JSONValue))
+        {
+            msg["parsed-log"] = log;
+        }
+        logger.warning(msg.to!string);
+    }
 
-    auto cmd = entry.command.substitute(json);
+    if (entry.empty) return;
+
+    auto cmd = entry.substitute(vars);
     auto newEnv = con.evaledEnv;
     auto ls = executeShell(cmd, newEnv, ProcessConfig.newEnv, size_t.max, con.workdir);
     auto code = ls.status;
@@ -109,26 +138,67 @@ auto userLog(Logger logger, UserLogEntry entry, JSONValue json, Config con)
 
     if (code == 0)
     {
-        string msg;
+        import std.conv : ConvException;
+
+        JSONValue json;
         try
         {
-            import std.conv : to;
-            msg = parseJSON(output).to!string;
-            logger.log(entry.level, msg);
+            import std.json : parseJSON;
+            json = parseJSON(output);
+            LogLevel lv = LogLevel.info;
+            if (auto l_ = "log-level" in json)
+            {
+                auto lvstr = l_.get!string;
+                try
+                {
+                    lv = lvstr.to!LogLevel;
+                }
+                catch(ConvException e)
+                {
+                    warningLog(format!"Invalid log level `%s` in the output of log command"(lvstr), json);
+                    return;
+                }
+
+                if (lv == LogLevel.fatal)
+                {
+                    warningLog(format!"Invalid log level `%s` in the output of log command"(lvstr), json);
+                    return;
+                }
+            }
+
+            if ("timestamp" in json)
+            {
+                warningLog("`timestamp` field is reserved by medal", json);
+                return;
+            }
+
+            if ("thread-id" in json)
+            {
+                warningLog("`thread-id` field is reserved by medal", json);
+                return;
+            }
+
+            if (".userlog" in json)
+            {
+                warningLog("`.userlog` field is reserved by medal", json);
+                return;
+            }
+
+            json[".userlog"] = true;
+            logger.log(lv, json.to!string);
         }
         catch(JSONException e)
         {
-            logger.warning(JSONValue([
-                "message": format!"Output of user command `%s` is not a valid JSON object"(entry.command),
-                "log": output,
-            ]).to!string);
+            warningLog("Output of log command is not a valid JSON object", output);
         }
     }
     else
     {
         logger.warning(JSONValue([
-            "message": format!"User command `%s` failed"(entry.command),
-            "log": output,
+            "message": JSONValue("Log command failed"),
+            "command": JSONValue(entry),
+            "log": JSONValue(output),
+            "return": JSONValue(code),
         ]).to!string);
     }
 }

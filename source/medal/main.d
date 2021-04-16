@@ -45,8 +45,8 @@ int medalMain(string[] args)
     auto helpInfo = args.getopt(
         config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
-        "sys-silent", "Do not print any system logs", () { sysLv = LogLevel.off; },
-        "sys-quiet", "Only print warnings and errors", () { sysLv = LogLevel.warning; },
+        "sys-silent", "Only print any system logs", () { sysLv = LogLevel.off; },
+        "sys-quiet", "Only print warnings and errors for medal", () { sysLv = LogLevel.warning; },
         "sys-verbose", "Enable verbose system logs", () { sysLv = LogLevel.trace; },
         "sys-log", "Specify system log destination (default: stderr)", &sysLogFile,
         "app-silent", "Do not print any application logs", () { appLv = LogLevel.off; },
@@ -79,17 +79,19 @@ EOS".outdent[0..$-1])(args[0].baseName);
     if (sysLogFile == appLogFile)
     {
         auto f = sysLogFile.empty ? stderr : File(sysLogFile, "w");
-        loggers[LogType.System] = new JSONLogger(f, sysLv);
+        loggers[LogType.System] = new JSONLogger(f);
         loggers[LogType.App] = new JSONLogger(f, appLv);
     }
     else
     {
         auto sf = sysLogFile.empty ? stderr : File(sysLogFile, "w");
-        loggers[LogType.System] = new JSONLogger(sf, sysLv);
+        loggers[LogType.System] = new JSONLogger(sf);
 
         auto af = appLogFile.empty ? stderr : File(appLogFile, "w");
         loggers[LogType.App] = new JSONLogger(af, appLv);
     }
+    // during loading, temporary set `error` to the system log level even if `--sys-quiet`
+    loggers[LogType.System].logLevel = LogLevel.error;
     sharedLog = loggers[LogType.System];
 
     if (tmpdir.empty)
@@ -181,6 +183,8 @@ EOS".outdent[0..$-1])(args[0].baseName);
         sharedLog.error(failureMsg("Initial marking does not match the guard of the network"));
         return 1;
     }
+
+    loggers[LogType.System].logLevel = sysLv;
 
     auto handlerTid = spawnSignalHandler(sharedLog);
     scope(exit)

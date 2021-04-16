@@ -8,20 +8,19 @@ out:
     pattern: ~(tr.return)
 command: echo ~(in.message)
 log:
-  pre: # user log before executing `echo` transition
-    level: info
-    # input places can be referred using `~(in.*)`
-    command: |
-      echo '{ "message": "~(in.message)" }'
-  success: # user log when succeeded
-    level: info
-    # output places can be referred using `~(out.*)`
-    # shell transitions provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
-    command: |
-      echo '{ "result": "success", "in": "~(in.message)", "out": "~(out.return)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'
-  failure: # user log when failed
-    level: info
-    # output places cannot be accessed via ~(out.*)
-    # shell transitions still provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
-    command: |
-      echo '{ "result": "failure", "in": "~(in.message)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'
+  # user log before executing `echo` transition
+  # input places can be referred using `~(in.*)`
+  pre: |
+    echo '{ "message": "~(in.message)" }'
+  # user log when succeeded
+  # output places can be referred using `~(out.*)`
+  # shell transitions provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
+  success: |
+    echo '{ "result": "success", "in": "~(in.message)", "out": "~(out.return)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'
+  # user log when failed
+  # output places cannot be accessed via ~(out.*)
+  # shell transitions still provide ~(tr.return), ~(tr.stdout) and ~(tr.stderr)
+  # the "log-level" field sets the log level that is controled via options such as `--app-quiet`, `--app-verbose`
+  # The value of "log-level" field is one of: `critical`, `error`, `warning`, `info` and `trace`
+  failure: |
+    echo '{ "log-level": "error", "result": "failure", "in": "~(in.message)", "code": "~(tr.return)", "stdout": "~(tr.stdout)", "stderr": "~(tr.stderr)" }'

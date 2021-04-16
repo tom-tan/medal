@@ -6,7 +6,7 @@
 module medal.transition.network;
 
 import medal.config : Config;
-import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog, UserLogEntry;
+import medal.logger : Logger, LogType, NullLogger, nullLoggers, userLog;
 import medal.transition.core;
 
 import std.concurrency : Tid;
@@ -20,8 +20,7 @@ immutable class NetworkTransition_: Transition
     this(in string name, in Guard g1, in Guard g2, in Transition[] trs,
          in Transition[] exitTrs = [], in Transition[] successTrs = [], in Transition[] failureTrs = [],
          immutable Config con = Config.init,
-         UserLogEntry pre = UserLogEntry.init,
-         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) nothrow pure @safe
+         string pre = "", string success = "", string failure = "") nothrow pure @safe
     in(!trs.empty)
     do
     {
@@ -225,8 +224,7 @@ immutable class InvocationTransition_: Transition
     this(in string name, in Guard g, in ArcExpressionFunction aef,
          immutable Place[Place] inPorts,
          Transition tr, immutable Config con = Config.init,
-         UserLogEntry pre = UserLogEntry.init,
-         UserLogEntry success = UserLogEntry.init, UserLogEntry failure = UserLogEntry.init) nothrow pure @trusted
+         string pre = "", string success = "", string failure = "") nothrow pure @trusted
     {
         super(name, g, aef, pre, success, failure);
         inputPorts = inPorts;
