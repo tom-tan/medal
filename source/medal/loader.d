@@ -551,7 +551,8 @@ auto loadUserLogEntries(Node node)
         userLogEntries["failure"] = (*failure).get!string;
         auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
                               node.portPlaceNames.map!"`tr.`~a".array ~
-                              configParameters;
+                              configParameters ~
+                              "interrupted";
         enforceValidCommand(userLogEntries["failure"], acceptedParams, *failure);
     }
     return userLogEntries;
