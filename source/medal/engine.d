@@ -139,7 +139,7 @@ struct Engine
             import std.file : exists, mkdirRecurse;
             if (config.tmpdir.exists)
             {
-                sysLogger.critical(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
+                sysLogger.error(failureMsg(initBe, config, "tmpdir already exists: "~config.tmpdir));
                 return ResultType(EngineResult.failed, BindingElement.init);
             }
             // it will be deleted by root (app.main)

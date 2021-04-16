@@ -128,7 +128,7 @@ immutable class ShellCommandTransition_: Transition
                     import std.format : format;
 
                     auto msg = format!"command returned with non-zero (%s)"(code);
-                    sysLogger.info(failureMsg(be, cmd, newEnv, con, msg));
+                    sysLogger.error(failureMsg(be, cmd, newEnv, con, msg));
                     appLogger.userLog(failureLogEntry, internalBE, con);
                     send(networkTid,
                          TransitionFailed(be, msg));
@@ -140,7 +140,7 @@ immutable class ShellCommandTransition_: Transition
                 import std.math : abs;
 
                 auto msg = format!"interrupted (%s)"(sig.no);
-                sysLogger.info(failureMsg(be, cmd, newEnv, con, msg));
+                sysLogger.error(failureMsg(be, cmd, newEnv, con, msg));
 
                 auto id = pid.processID;
                 sysLogger.tracef("kill %s", id);

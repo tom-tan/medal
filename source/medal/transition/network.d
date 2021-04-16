@@ -85,13 +85,13 @@ protected:
             break;
         case failed:
             internalBE["interrupted"] = false;
-            sysLogger.info(failureMsg(initBe, netConfig, "internal transition failed"));
+            sysLogger.error(failureMsg(initBe, netConfig, "internal transition failed"));
             appLogger.userLog(failureLogEntry, internalBE, netConfig);
             send(networkTid, TransitionFailed(initBe));
             break;
         case interrupted:
             internalBE["interrupted"] = true;
-            sysLogger.info(failureMsg(initBe, netConfig, "transition interrupted"));
+            sysLogger.error(failureMsg(initBe, netConfig, "transition interrupted"));
             appLogger.userLog(failureLogEntry, internalBE, netConfig);
             send(networkTid, TransitionInterrupted(initBe));
             break;
@@ -287,7 +287,7 @@ protected:
                 internalBE["interrupted"] = false;
 
                 auto msg = "internal transition failed";
-                sysLogger.info(failureMsg(initBe, con, msg));
+                sysLogger.error(failureMsg(initBe, con, msg));
                 appLogger.userLog(failureLogEntry, internalBE, c);
                 send(networkTid, TransitionFailed(initBe, msg));
             },
@@ -316,13 +316,13 @@ protected:
                     (TransitionFailed tf) {
                         internalBE["interrupted"] = false;
                         auto msg = "internal transition failed";
-                        sysLogger.info(failureMsg(initBe, con, msg));
+                        sysLogger.error(failureMsg(initBe, con, msg));
                         appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
                     (TransitionInterrupted ti) {
                         internalBE["interrupted"] = true;
-                        sysLogger.info(failureMsg(initBe, con, "transition interrupted"));
+                        sysLogger.error(failureMsg(initBe, con, "transition interrupted"));
                         appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionInterrupted(initBe));
                     },
@@ -330,7 +330,7 @@ protected:
                         import std.format : format;
                         internalBE["interrupted"] = false;
                         auto msg = format!"unknown message (%s)"(v);
-                        sysLogger.trace(failureMsg(initBe, con, msg));
+                        sysLogger.critical(failureMsg(initBe, con, msg));
                         appLogger.userLog(failureLogEntry, internalBE, c);
                         send(networkTid, TransitionFailed(initBe, msg));
                     },
@@ -340,7 +340,7 @@ protected:
                 import std.format : format;
                 internalBE["interrupted"] = false;
                 auto msg = format!"unknown message (%s)"(v);
-                sysLogger.trace(failureMsg(initBe, con, msg));
+                sysLogger.critical(failureMsg(initBe, con, msg));
                 appLogger.userLog(failureLogEntry, internalBE, c);
                 send(networkTid, TransitionFailed(initBe, msg));
             }

@@ -45,13 +45,16 @@ int medalMain(string[] args)
     auto helpInfo = args.getopt(
         config.caseSensitive,
         "init|i", "Specify initial marking file", &initFile,
-        "sys-quiet", "Do not print any system logs", () { sysLv = LogLevel.off; },
+        "sys-silent", "Do not print any system logs", () { sysLv = LogLevel.off; },
+        "sys-quiet", "Only print warnings and errors", () { sysLv = LogLevel.warning; },
         "sys-verbose", "Enable verbose system logs", () { sysLv = LogLevel.trace; },
         "sys-log", "Specify system log destination (default: stderr)", &sysLogFile,
-        "app-quiet", "Do not print any application logs", () { appLv = LogLevel.off; },
+        "app-silent", "Do not print any application logs", () { appLv = LogLevel.off; },
+        "app-quiet", "Only print warnings and errors for application", () { appLv = LogLevel.warning; },
         "app-verbose", "Enable verbose application logs", () { appLv = LogLevel.trace; },
         "app-log", "Specify application log destination (default: stderr)", &appLogFile,
-        "quiet", "Same as `--sys-quiet --app-quiet`", () { sysLv = appLv = LogLevel.off; },
+        "silent", "Same as `--sys-slient --app-silent`", () { sysLv = appLv = LogLevel.off; },
+        "quiet", "Same as `--sys-quiet --app-quiet`", () { sysLv = appLv = LogLevel.warning; },
         "verbose", "Same as `--sys-verbose --app-verbose`", () { sysLv = appLv = LogLevel.trace; },
         "log", "Same as `--sys-log=file --app-log=file`", (string _, string name) { sysLogFile = appLogFile = name; },
         "tmpdir", "Specify temporary directory", &tmpdir,
@@ -98,7 +101,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         tmpdir = buildPath(tempDir, format!"medal-%s"(thisProcessID)).absolutePath;
         if (tmpdir.exists)
         {
-            sharedLog.critical(failureMsg("Temporary directory already exists: "~tmpdir));
+            sharedLog.error(failureMsg("Temporary directory already exists: "~tmpdir));
             return 1;
         }
     }
@@ -107,7 +110,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
         tmpdir = tmpdir.absolutePath;
         if (tmpdir.exists)
         {
-            sharedLog.critical(failureMsg("Specified temporary directory already exists: "~tmpdir));
+            sharedLog.error(failureMsg("Specified temporary directory already exists: "~tmpdir));
             return 1;
         }
     }
@@ -124,7 +127,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
     workdir = workdir.absolutePath;
     if (!workdir.empty && !workdir.exists)
     {
-        sharedLog.critical(failureMsg("Specified working directory does not exist: "~workdir));
+        sharedLog.error(failureMsg("Specified working directory does not exist: "~workdir));
         return 1;
     }
 
@@ -136,7 +139,7 @@ EOS".outdent[0..$-1])(args[0].baseName);
     auto netFile = args[1];
     if (!netFile.exists)
     {
-        sharedLog.critical(failureMsg("Network file is not found: "~netFile));
+        sharedLog.error(failureMsg("Network file is not found: "~netFile));
         return 1;
     }
     Node netRoot;
@@ -148,12 +151,12 @@ EOS".outdent[0..$-1])(args[0].baseName);
     }
     catch(LoadError e)
     {
-        sharedLog.critical(failureMsg(e));
+        sharedLog.error(failureMsg(e));
         return 1;
     }
     catch(YAMLException e)
     {
-        sharedLog.critical(failureMsg(e));
+        sharedLog.error(failureMsg(e));
         return 1;
     }
 
@@ -169,13 +172,13 @@ EOS".outdent[0..$-1])(args[0].baseName);
     }
     else
     {
-        sharedLog.critical(failureMsg("Initial marking file is not found: "~initFile));
+        sharedLog.error(failureMsg("Initial marking file is not found: "~initFile));
         return 1;
     }
 
     if (!tr.fireable(initBe))
     {
-        sharedLog.critical(failureMsg("Initial marking does not match the guard of the network"));
+        sharedLog.error(failureMsg("Initial marking does not match the guard of the network"));
         return 1;
     }
 
@@ -196,14 +199,14 @@ EOS".outdent[0..$-1])(args[0].baseName);
             success = true;
         },
         (TransitionFailed tf) {
-            sharedLog.info(failureMsg("transition failure"));
+            sharedLog.error(failureMsg("transition failure"));
             success = false;
         },
         (SignalSent ss) {
             import std.concurrency : send;
 
             auto no = ss.no;
-            sharedLog.info(failureMsg(format!"signal %s is sent"(no)));
+            sharedLog.warning(failureMsg(format!"signal %s is sent"(no)));
             send(mainTid, ss);
             receive(
                 (TransitionSucceeded ts) {
@@ -211,11 +214,11 @@ EOS".outdent[0..$-1])(args[0].baseName);
                     success = true;
                 },
                 (TransitionFailed tf) {
-                    sharedLog.info(failureMsg("transition failure"));
+                    sharedLog.error(failureMsg("transition failure"));
                     success = false;
                 },
                 (TransitionInterrupted ti) {
-                    sharedLog.info(failureMsg(format!"transition is interrupted (%s)"(no)));
+                    sharedLog.error(failureMsg(format!"transition is interrupted (%s)"(no)));
                     success = false;
                 },
                 (Variant v) {
