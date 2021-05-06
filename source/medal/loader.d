@@ -548,11 +548,18 @@ auto loadUserLogEntries(Node node)
     }
     if (auto failure = "failure" in userLogs)
     {
+        import std.algorithm : filter;
         userLogEntries["failure"] = (*failure).get!string;
         auto acceptedParams = node.inPlaceNames.map!"`in.`~a".array ~
                               node.portPlaceNames.map!"`tr.`~a".array ~
                               configParameters ~
-                              "interrupted";
+                              "interrupted" ~
+                              node.dig("out", [])
+                                  .sequence
+                                  .filter!(n => n.edig("pattern") == "~(newfile)")
+                                  .map!(n => "tr.newfile."~n.edig("place").get!string)
+                                  .array;
+
         enforceValidCommand(userLogEntries["failure"], acceptedParams, *failure);
     }
     return userLogEntries;

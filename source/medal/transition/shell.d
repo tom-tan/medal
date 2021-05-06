@@ -83,10 +83,8 @@ immutable class ShellCommandTransition_: Transition
         auto stderrName = buildPath(tmpdir, format!"tr-%s-stderr-%s"(name, randomUUID));
         auto serr = File(stderrName, "w");
 
-        internalBE["tr"] = [
-            "stdout": stdoutName,
-            "stderr": stderrName,
-        ];
+        internalBE["tr"]["stdout"] = stdoutName;
+        internalBE["tr"]["stderr"] = stderrName;
 
         sysLogger.trace(constructMsg(be, cmd, newEnv, con));
         auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr,
@@ -111,6 +109,17 @@ immutable class ShellCommandTransition_: Transition
                 internalBE["tr"]["return"] = code;
                 internalBE["interrupted"] = false;
                 auto needReturn = arcExpFun.byValue.canFind(SpecialPattern.Return);
+                if (auto files = "newfile" in internalBE["tr"])
+                {
+                    import std.algorithm : each;
+                    files.object.byValue.each!((f) {
+                        import std.file : exists, write;
+                        if (!f.str.exists)
+                        {
+                            f.str.write([]);
+                        }
+                    });
+                }
 
                 if (needReturn || code == 0)
                 {
@@ -150,6 +159,17 @@ immutable class ShellCommandTransition_: Transition
                 internalBE["tr"]["return"] = ret.abs;
                 internalBE["interrupted"] = ret < 0;
                 // TODO: interrupted or not
+                if (auto files = "newfile" in internalBE["tr"])
+                {
+                    import std.algorithm : each;
+                    files.object.byValue.each!((f) {
+                        import std.file : exists, write;
+                        if (!f.str.exists)
+                        {
+                            f.str.write([]);
+                        }
+                    });
+                }
 
                 appLogger.userLog(failureLogEntry, internalBE, con);
                 send(networkTid, TransitionInterrupted(be));
@@ -163,6 +183,17 @@ immutable class ShellCommandTransition_: Transition
                 auto ret = receiveOnly!int;
                 internalBE["tr"]["return"] = ret.abs;
                 internalBE["interrupted"] = false;
+                if (auto files = "newfile" in internalBE["tr"])
+                {
+                    import std.algorithm : each;
+                    files.object.byValue.each!((f) {
+                        import std.file : exists, write;
+                        if (!f.str.exists)
+                        {
+                            f.str.write([]);
+                        }
+                    });
+                }
 
                 auto msg = format!"unknown message (%s)"(v);
                 sysLogger.critical(failureMsg(be, cmd, newEnv, con, msg));
