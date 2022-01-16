@@ -63,7 +63,7 @@ jobs:
           tar cf ${GITHUB_WORKSPACE}/medal.tar.gz medal
           tar cf ${GITHUB_WORKSPACE}/net2dot.tar.gz net2dot
         env:
-          alpineVersion: 3.13
+          alpineVersion: 3.15
       - uses: actions/create-release@v1
         id: create_release
         env:
