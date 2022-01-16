@@ -32,7 +32,6 @@ immutable class ShellCommandTransition_: Transition
                                  Config con = Config.init, Logger[LogType] loggers = nullLoggers)
     {
         import medal.message : SignalSent, TransitionInterrupted, TransitionFailed, TransitionSucceeded;
-        import medal.utils.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
 
         import std.algorithm : canFind, either, filter;
         import std.concurrency : receive, send, spawn;
@@ -40,6 +39,7 @@ immutable class ShellCommandTransition_: Transition
         import std.file : getcwd, remove;
         import std.format : format;
         import std.path : buildPath;
+        import std.process : kill, Pid, spawnProcess, tryWait, ProcessConfig = Config, wait;
         import std.stdio : File, stdin;
         import std.uuid : randomUUID;
         import std.variant : Variant;
@@ -86,9 +86,25 @@ immutable class ShellCommandTransition_: Transition
         internalBE["tr"]["stdout"] = stdoutName;
         internalBE["tr"]["stderr"] = stderrName;
 
+        ProcessConfig pcon = ProcessConfig.newEnv;
+        pcon.preExecFunction = () nothrow @nogc @trusted {
+            // Reset signal handlers
+            import core.sys.posix.signal : sigfillset, sigprocmask, sigset_t, SIG_UNBLOCK;
+            sigset_t ss;
+            if (sigfillset(&ss) != 0)
+            {
+                return false;
+            }
+            if (sigprocmask(SIG_UNBLOCK, &ss, null) != 0)
+            {
+                return false;
+            }
+            return true;
+        };
+
         sysLogger.trace(constructMsg(be, cmd, newEnv, con));
         auto pid = spawnProcess(["bash", "-eo", "pipefail", "-c", cmd], stdin, sout, serr,
-                                newEnv, ProcessConfig.newEnv, con.workdir);
+                                newEnv, pcon, con.workdir);
 
 		spawn((shared Pid pid) {
             import std.concurrency : ownerTid;

@@ -39,7 +39,7 @@ Note: syntax is not fixed yet.
 
 ## For developers
 ### Build requirements
-- D compiler
+- D compiler (ldc 1.27.0, dmd 2.097.0 or later)
 - dub
 
 or
@@ -71,7 +71,3 @@ $ dub run gendoc
 ```
 
 You will see API documents (HTML) in `docs` directory.
-
-# LICENSE
-
-This repository is licensed under [Apache 2.0](LICENSE) except for [process.d](source/medal/utils/process.d) that is licensed under Boost License 1.0.
